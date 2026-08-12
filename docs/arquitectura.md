@@ -5,12 +5,18 @@ Región configurada para Functions: `us-central1`
 
 El diagrama describe la arquitectura lógica. Functions, Firestore y Hosting fueron verificados juntos en Firebase Emulator Suite. Después de integrar la whitelist se verificó mediante Hosting que loopback atraviesa el middleware hasta el handler (HTTP 405 para un GET), una IP no autorizada recibe 403 y `directorio` continúa público con 200; no se repitió una recolección POST real para evitar consumo innecesario de Places. En cloud ya están habilitadas las APIs necesarias, Firestore `(default)` existe en `us-central1` y Secret Manager contiene una key dedicada restringida a Places. La whitelist está implementada en código para la ruta de recolección y `IP_WHITELIST` tiene una versión cloud habilitada. Functions, Hosting y URLs de producción no se documentan como desplegados sin evidencia.
 
+![Diagrama de arquitectura: la persona usuaria llega por Firebase Hosting, que enruta GET /directorio y POST /recolectarMedicos a dos Cloud Functions separadas; solo la recolectora pasa por la whitelist de IP, recibe los secretos y llama a Google Places, y ambas escriben o leen en medicos/{place_id} con acceso directo de clientes bloqueado](./arquitectura.jpg)
+
+El diagrama es anterior al limitador de ráfagas, así que no lo dibuja. El flujograma Mermaid y la tabla de responsabilidades de más abajo sí lo incluyen.
+
 ```mermaid
 flowchart LR
     USER["Persona usuaria"] --> HOST["Firebase Hosting\nUI y rewrites"]
-    HOST --> DIR["Function v2 directorio\nus-central1"]
+    HOST --> RLD["Limitador de ráfagas\n30/min por IP"]
+    RLD --> DIR["Function v2 directorio\nus-central1"]
     OP["Operador autorizado"] --> WL["Whitelist IP\nX-Forwarded-For"]
-    WL -->|POST /recolectarMedicos| COL["Function v2 recolectarMedicos\nus-central1"]
+    WL -->|POST /recolectarMedicos| RLC["Limitador de ráfagas\n6/min por IP"]
+    RLC --> COL["Function v2 recolectarMedicos\nus-central1"]
     DIR --> DB["Cloud Firestore (default)\nNative Standard, us-central1\nmedicos/{place_id}"]
     COL --> DB
     COL --> PLACES["Places API New\nhasta 20 resultados"]

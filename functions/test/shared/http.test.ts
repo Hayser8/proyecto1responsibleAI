@@ -1,32 +1,18 @@
-import {describe, expect, it, vi} from "vitest";
-import {HttpError, sendHttpError} from "../../src/shared/http";
+import {describe, expect, it} from "vitest";
+import {HttpError, toErrorResult} from "../../src/shared/http.js";
 
-function responseDouble() {
-  const json = vi.fn();
-  const status = vi.fn().mockReturnValue({json});
-  return {status, json};
-}
-
-describe("sendHttpError", () => {
-  it("returns safe details for an expected HTTP error", () => {
-    const response = responseDouble();
-
-    sendHttpError(response as never, new HttpError(400, "Filtro inválido", "invalid-argument"));
-
-    expect(response.status).toHaveBeenCalledWith(400);
-    expect(response.json).toHaveBeenCalledWith({
-      error: {code: "invalid-argument", message: "Filtro inválido"},
+describe("toErrorResult", () => {
+  it("preserves controlled status and public message", () => {
+    expect(toErrorResult(new HttpError(400, "INVALID_REQUEST", "Solicitud inválida"))).toEqual({
+      status: 400,
+      body: {error: {code: "INVALID_REQUEST", message: "Solicitud inválida"}},
     });
   });
 
-  it("does not expose unexpected error details", () => {
-    const response = responseDouble();
-
-    sendHttpError(response as never, new Error("database password leaked"));
-
-    expect(response.status).toHaveBeenCalledWith(500);
-    expect(response.json).toHaveBeenCalledWith({
-      error: {code: "internal-error", message: "Ocurrió un error inesperado."},
+  it("hides unexpected internal details", () => {
+    expect(toErrorResult(new Error("secret stack detail"))).toEqual({
+      status: 500,
+      body: {error: {code: "INTERNAL", message: "Error interno"}},
     });
   });
 });

@@ -1,17 +1,15 @@
 {
-  "name": "directorio-medico-responsable",
-  "version": "1.0.0",
+  "name": "proyecto1responsibleai",
   "private": true,
   "scripts": {
-    "build": "npm --prefix functions run build",
-    "test": "npm --prefix functions test",
+    "build": "npm --prefix functions run build && npm --prefix web run build",
+    "test": "npm --prefix functions test && npm --prefix web test",
+    "test:emulators": "firebase emulators:exec --only firestore,functions,hosting \"npm --prefix functions run test:integration\"",
     "emulators": "firebase emulators:start",
-    "deploy": "firebase deploy"
+    "deploy:hosting": "firebase deploy --only hosting",
+    "deploy:functions": "firebase deploy --only functions"
   },
   "devDependencies": {
-    "firebase-tools": "^15.25.1"
-  },
-  "engines": {
-    "node": "22"
+    "firebase-tools": "15.25.1"
   }
 }

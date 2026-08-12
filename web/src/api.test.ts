@@ -40,6 +40,18 @@ describe("fetchDirectory", () => {
     await expect(request).rejects.toThrow("No se pudo consultar el directorio. Intente de nuevo.");
     await expect(request).rejects.not.toThrow(/Internal|stack|srv|<h1>/i);
   });
+
+  it("convierte un 429 en un aviso de espera sin filtrar el cuerpo", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response("<h1>Too Many Requests</h1> secret stack at /srv/app.ts:40", {status: 429}),
+    );
+
+    const request = fetchDirectory({page: 1, pageSize: 20}, fetchImpl);
+
+    await expect(request).rejects.toBeInstanceOf(DirectoryApiError);
+    await expect(request).rejects.toThrow("Demasiadas solicitudes. Espere unos segundos e intente de nuevo.");
+    await expect(request).rejects.not.toThrow(/secret|stack|srv|<h1>/i);
+  });
 });
 
 describe("collectDoctors", () => {
@@ -72,7 +84,7 @@ describe("collectDoctors", () => {
 
   it.each([
     [400, "Revise la keyword, especialidad y zona."],
-    [429, "Se alcanzó la cuota de Google Places. Intente mañana."],
+    [429, "Hay demasiadas solicitudes en este momento. Intente de nuevo en unos minutos."],
     [500, "No se pudo recolectar desde Google Places. Intente de nuevo."],
   ])("devuelve un error seguro para HTTP %i", async (status, safeMessage) => {
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
@@ -84,6 +96,37 @@ describe("collectDoctors", () => {
     await expect(result).rejects.toBeInstanceOf(CollectionApiError);
     await expect(result).rejects.toThrow(safeMessage);
     await expect(result).rejects.not.toThrow(/Internal|secret|stack|srv|<h1>/i);
+  });
+
+  it.each([
+    ["PLACES_QUOTA", "Se alcanzó la cuota de Google Places. Intente mañana."],
+    ["RATE_LIMITED", "Demasiadas solicitudes. Espere unos segundos e intente de nuevo."],
+    ["CODIGO_DESCONOCIDO", "Hay demasiadas solicitudes en este momento. Intente de nuevo en unos minutos."],
+  ])("distingue el 429 con código %s", async (code, expectedMessage) => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({error: {code, message: "detalle interno"}}), {
+        status: 429,
+        headers: {"Content-Type": "application/json"},
+      }),
+    );
+
+    const result = collectDoctors(request, fetchImpl);
+
+    await expect(result).rejects.toBeInstanceOf(CollectionApiError);
+    await expect(result).rejects.toThrow(expectedMessage);
+  });
+
+  it("no repite el mensaje del servidor en un 429 limitado", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({
+        error: {code: "RATE_LIMITED", message: "<h1>secret stack at /srv/app.ts:40</h1>"},
+      }), {status: 429, headers: {"Content-Type": "application/json"}}),
+    );
+
+    const result = collectDoctors(request, fetchImpl);
+
+    await expect(result).rejects.toThrow("Demasiadas solicitudes. Espere unos segundos e intente de nuevo.");
+    await expect(result).rejects.not.toThrow(/secret|stack|srv|<h1>/i);
   });
 
   it.each([

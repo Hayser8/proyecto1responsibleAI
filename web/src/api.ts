@@ -9,6 +9,8 @@ export interface DirectoryQuery {
 
 const SAFE_ERROR_MESSAGE = "No se pudo consultar el directorio. Intente de nuevo.";
 const SAFE_COLLECTION_ERROR_MESSAGE = "No se pudo recolectar desde Google Places. Intente de nuevo.";
+const SAFE_RATE_LIMIT_MESSAGE = "Demasiadas solicitudes. Espere unos segundos e intente de nuevo.";
+const SAFE_BUSY_MESSAGE = "Hay demasiadas solicitudes en este momento. Intente de nuevo en unos minutos.";
 
 export class DirectoryApiError extends Error {
   constructor(message = SAFE_ERROR_MESSAGE) {
@@ -21,6 +23,22 @@ export class CollectionApiError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "CollectionApiError";
+  }
+}
+
+// Un 429 puede venir de tres orígenes con significados distintos: la cuota diaria de
+// Google Places, el limitador de ráfagas de la Function, o la plataforma al saturarse.
+// Solo el código del cuerpo los distingue; el mensaje del servidor nunca se muestra.
+async function readErrorCode(response: Response): Promise<string | undefined> {
+  try {
+    const payload: unknown = await response.json();
+    if (typeof payload !== "object" || payload === null) return undefined;
+    const error = (payload as {error?: unknown}).error;
+    if (typeof error !== "object" || error === null) return undefined;
+    const code = (error as {code?: unknown}).code;
+    return typeof code === "string" ? code : undefined;
+  } catch {
+    return undefined;
   }
 }
 
@@ -80,6 +98,9 @@ export async function fetchDirectory(
     const response = await fetchImpl(`/directorio?${params.toString()}`, {
       headers: {Accept: "application/json"},
     });
+    // En el directorio todo 429 significa lo mismo para la persona usuaria: esperar.
+    // No hace falta leer el cuerpo para elegir un mensaje verdadero.
+    if (response.status === 429) throw new DirectoryApiError(SAFE_RATE_LIMIT_MESSAGE);
     if (!response.ok) throw new DirectoryApiError();
     return await response.json() as DirectoryPage;
   } catch (error) {
@@ -104,7 +125,14 @@ export async function collectDoctors(
         throw new CollectionApiError("Revise la keyword, especialidad y zona.");
       }
       if (response.status === 429) {
-        throw new CollectionApiError("Se alcanzó la cuota de Google Places. Intente mañana.");
+        const code = await readErrorCode(response);
+        if (code === "RATE_LIMITED") {
+          throw new CollectionApiError(SAFE_RATE_LIMIT_MESSAGE);
+        }
+        if (code === "PLACES_QUOTA") {
+          throw new CollectionApiError("Se alcanzó la cuota de Google Places. Intente mañana.");
+        }
+        throw new CollectionApiError(SAFE_BUSY_MESSAGE);
       }
       throw new CollectionApiError(SAFE_COLLECTION_ERROR_MESSAGE);
     }

@@ -9,8 +9,15 @@ import {createPlacesClient} from "./recoleccion/places-client.js";
 import {createFirestoreMedicosWriter} from "./recoleccion/repository.js";
 import {createCollectionService} from "./recoleccion/service.js";
 import {withIpWhitelist} from "./security/ip-whitelist.js";
+import {withRateLimit} from "./security/rate-limit.js";
 
 initializeApp();
+
+// Mitigación de ráfagas por instancia. No es un límite global garantizado: cada
+// instancia mantiene su propio contador y ambas Functions escalan a cero, así que el
+// techo real es el límite multiplicado por maxInstances. Ver docs/rate-limit.md.
+const RECOLECCION_RATE_LIMIT = {burst: 3, perMinute: 6, globalPerMinute: 10, maxKeys: 64, now: Date.now};
+const DIRECTORIO_RATE_LIMIT = {burst: 30, perMinute: 30, globalPerMinute: 120, maxKeys: 1_000, now: Date.now};
 
 const placesApiKey = defineSecret("GOOGLE_PLACES_API_KEY");
 const ipWhitelist = defineJsonSecret("IP_WHITELIST");
@@ -26,11 +33,17 @@ export const recolectarMedicos = onRequest(
     maxInstances: 2,
     timeoutSeconds: 60,
   },
+  // El limitador va por dentro de la whitelist: docs/ip-whitelist.md afirma que una IP
+  // no autorizada recibe 403 antes de cualquier otra cosa. Invertir el orden devolvería
+  // 429 a tráfico no autorizado y dejaría que internet poblara el mapa de buckets.
   withIpWhitelist(
-    createRecolectarHandler({
-      collect: collectionService.collect,
-      getApiKey: () => placesApiKey.value(),
-    }),
+    withRateLimit(
+      createRecolectarHandler({
+        collect: collectionService.collect,
+        getApiKey: () => placesApiKey.value(),
+      }),
+      RECOLECCION_RATE_LIMIT,
+    ),
     () => ipWhitelist.value(),
   ),
 );
@@ -41,5 +54,5 @@ export const directorio = onRequest(
     maxInstances: 5,
     timeoutSeconds: 30,
   },
-  createDirectoryHandler(reader),
+  withRateLimit(createDirectoryHandler(reader), DIRECTORIO_RATE_LIMIT),
 );

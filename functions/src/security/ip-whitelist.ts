@@ -89,7 +89,7 @@ function allowedIps(value: unknown): Set<string> | undefined {
     : undefined;
 }
 
-function clientIp(request: Request): string | undefined {
+export function clientIp(request: Request): string | undefined {
   const forwardedFor = request.headers["x-forwarded-for"];
   const hasForwardedFor = forwardedFor !== undefined;
   const value = Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor;

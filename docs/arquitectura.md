@@ -29,6 +29,7 @@ flowchart LR
 | Secret Manager | entregar la key y el arreglo `IP_WHITELIST` solo a `recolectarMedicos` | `GOOGLE_PLACES_API_KEY` verificada; `IP_WHITELIST` v1 ENABLED |
 | Places API (New) | fuente externa de los campos permitidos | Habilitada; `SearchTextRequest` limitado a 100/día; hubo pruebas locales reales previas |
 | Whitelist IP | rechazar con 403 antes de negocio/Firestore/Places | Implementada; secreto local preparado y secreto cloud v1 habilitado; despliegue pendiente |
+| Limitador de ráfagas | responder 429 `RATE_LIMITED` cuando se excede el ritmo, en ambas Functions | Implementado en código con pruebas unitarias; best-effort por instancia; despliegue pendiente |
 
 ## Límites de confianza
 
@@ -59,6 +60,8 @@ La gestión cloud de `IP_WHITELIST` y el despliegue posterior se documentan en [
 ## Dos controles distintos: whitelist y restricción de key
 
 La **whitelist del endpoint** es un control de entrada: compara la IP que proporciona la cadena de ingreso de una Function y responde 403 antes de negocio. Reduce quién puede iniciar recolección bajo el límite de confianza documentado, pero no es inmune a suplantación en toda topología ni impide que una key robada se use directamente contra Places. Para producción se requiere verificar el ingreso exacto o aplicar Cloud Armor/un proxy controlado que reescriba un header confiable.
+
+El **limitador de ráfagas** es un tercer control con otro eje: no decide quién llama ni dónde vale la credencial, sino a qué ritmo se atiende. Vive en memoria de cada instancia, así que acota ráfagas pero no garantiza un total por ventana ni sostiene un presupuesto diario; esa función la cumple la cuota de Places del lado de Google. Sus límites declarados y lo que explícitamente no garantiza están en [rate-limit.md](./rate-limit.md).
 
 La **restricción de la API key** controla dónde puede usarse la credencial. Debe restringirse a Places API (New). Restringir además por IP de salida solo es viable si Functions dispone de egress estático (por ejemplo, red/NAT), infraestructura no aprobada por su costo y complejidad. La restricción por API tampoco reemplaza la whitelist: no identifica al cliente que llama el endpoint.
 

@@ -25,10 +25,13 @@ La facturación de `proyecto1responsibleai` está habilitada. La evidencia del 2
 | Secret Manager cloud | VERIFICADO: `GOOGLE_PLACES_API_KEY` latest=v2 ENABLED |
 | Firestore `(default)` | VERIFICADO: Native Standard, `us-central1`, delete protection |
 | Whitelist de `recolectarMedicos` | IMPLEMENTADA; `IP_WHITELIST` v1 ENABLED; despliegue pendiente |
+| Limitación de ráfagas en ambas Functions | IMPLEMENTADA en código; best-effort por instancia; despliegue pendiente |
 | Functions/Hosting desplegados | **PENDIENTE** |
 | URLs de producción | **PENDIENTE** |
 
 La key y el arreglo JSON `IP_WHITELIST` se vinculan solo a `recolectarMedicos` al desplegar. `latest` de la key corresponde a la versión 2 ENABLED y a una key dedicada del proyecto número `487068590350`; la versión anterior pertenecía a otro proyecto y no fue eliminada. Firestore niega acceso directo de clientes; las Functions accederán por Admin SDK/IAM. La whitelist es un control de entrada al endpoint de recolección y rechaza con 403 antes de negocio, Places o Firestore. Su diseño académico confía en la primera IP de la cadena suministrada por el ingreso administrado y no debe describirse como inmune a suplantación hasta probar las URLs directas y de Hosting desplegadas; producción debe considerar Cloud Armor o un proxy controlado que reescriba un header confiable. La restricción de key es otro control: limita la credencial a Places; una restricción por IP de egress exigiría salida estática no configurada. Ninguno sustituye al otro. La gestión segura de la lista está en [ip-whitelist.md](./ip-whitelist.md).
+
+Un cuarto control acota el ritmo: ambas Functions pasan por un limitador de ráfagas en memoria que responde 429 con `RATE_LIMITED` y `Retry-After`. En `recolectarMedicos` corre por dentro de la whitelist para no alterar el contrato de 403 documentado. Es best-effort por instancia y no sustituye la cuota diaria de Places, que sigue siendo la única garantía servidor de Google. Detalles y límites honestos en [rate-limit.md](./rate-limit.md).
 
 ## 3. Recolección, modelo y keywords
 
@@ -44,7 +47,7 @@ La matriz exacta está en [keywords.md](./keywords.md). No se completa una matri
 
 La UI ofrece comboboxes nativos, búsqueda, estado de carga/error/vacío, tabla de siete columnas, fechas y botones Anterior/Siguiente. También incluye un apartado de recolección: envía `POST /recolectarMedicos` con keyword, especialidad y zona; después consulta `GET /directorio` para mostrar los datos guardados. Inserta datos remotos como texto y muestra el aviso académico.
 
-La verificación automatizada final ejecutó `npm test` y `npm run build`: Functions registró 99 pruebas aprobadas y 1 integración omitida sin emulador; Web registró 27 aprobadas; ambos builds terminaron correctamente.
+La verificación automatizada final ejecutó `npm test` y `npm run build`: Functions registró 126 pruebas aprobadas y 1 integración omitida sin emulador; Web registró 32 aprobadas; ambos builds terminaron correctamente.
 
 - Functions: pruebas unitarias y de integración local con Firestore Emulator.
 - Web: pruebas de interfaz y build de Vite.

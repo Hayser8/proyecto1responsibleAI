@@ -44,9 +44,9 @@ La presentación debe usar el flujo local o las evidencias. No inventar URL, mé
 
 - [x] [Recolección exitosa SIMULADA/LOCAL](../evidencias/task-14-recoleccion-simulada-local.png): ejecución real de `createCollectionService` con cliente Places falso inyectado y Firestore Emulator; 3 encontrados, 3 creados, 0 actualizados, sin red externa.
 - [x] [Respuesta JSON del API LOCAL](../evidencias/task-14-api-json-local.png): solicitud HTTP real mediante Hosting Emulator y rewrite a `directorio`; HTTP 200, tres fixtures y metadatos de paginación/filtros.
-- [ ] Functions: 63 unitarias aprobadas.
-- [ ] Web: 9 pruebas aprobadas.
-- [ ] Integración: 1 prueba real contra Firestore Emulator aprobada.
+- [ ] Functions: 126 unitarias aprobadas.
+- [ ] Web: 32 pruebas aprobadas.
+- [ ] Integración: 1 prueba real contra Firestore Emulator aprobada; solo se ejecuta con el emulador activo.
 - [ ] Builds Functions/Web aprobados.
 - [ ] Navegador Chromium verificó el flujo 20 → 5 → 20 y los rewrites HTTP 200.
 - [ ] Sin llamadas Places ni deploy de Functions/Hosting; solo preparación de APIs, Firestore, cuota y secreto en cloud.

@@ -42,7 +42,7 @@ curl -i -H 'X-Forwarded-For: 198.51.100.77' \
   http://127.0.0.1:5001/proyecto1responsibleai/us-central1/recolectarMedicos
 ```
 
-El primer ejemplo supone que `127.0.0.1` aparece en `functions/.secret.local`; el segundo usa una dirección reservada para documentación. Definir manualmente `X-Forwarded-For` solo comprueba el comportamiento funcional del emulador. **No demuestra la seguridad del ingreso de producción.**
+El primer ejemplo supone que `127.0.0.1` aparece en `functions/.secret.local`; el segundo usa una dirección reservada para documentación. Repetir el primero varias veces seguidas puede devolver `429 RATE_LIMITED` en vez de `405`: el limitador de ráfagas corre por dentro de la whitelist y en el emulador todo el tráfico comparte la clave `127.0.0.1`. Ver [rate-limit.md](./rate-limit.md). Definir manualmente `X-Forwarded-For` solo comprueba el comportamiento funcional del emulador. **No demuestra la seguridad del ingreso de producción.**
 
 ## Uso local y límites de confianza
 

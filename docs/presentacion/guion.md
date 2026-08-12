@@ -46,7 +46,7 @@ Frase: “Estos nombres son fixtures; demuestran integración y paginación, no 
 
 ## 15:00–18:00 · Pruebas, costos y limitaciones
 
-- 63 pruebas Functions, 9 Web y 1 integración Firestore Emulator aprobadas; builds aprobados.
+- 126 pruebas Functions, 32 Web y 1 integración Firestore Emulator aprobadas; builds aprobados. La integración solo se ejecuta con el emulador activo.
 - Navegador real verificó formulario, tabla 20/5 y navegación completa.
 - Crédito: USD 300 activo hasta 2026-10-16.
 - Presupuesto: USD 270 para la cuenta, alertas 25/50/90; alertas no detienen gasto.

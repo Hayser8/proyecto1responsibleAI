@@ -1,0 +1,29 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "medicos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "especialidad", "order": "ASCENDING" },
+        { "fieldPath": "zona", "order": "ASCENDING" },
+        { "fieldPath": "nombre", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "medicos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "zona", "order": "ASCENDING" },
+        { "fieldPath": "nombre", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "medicos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "place_id", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

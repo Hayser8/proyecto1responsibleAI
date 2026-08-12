@@ -1,0 +1,17 @@
+{
+  "name": "directorio-medico-responsable",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "npm --prefix functions run build",
+    "test": "npm --prefix functions test",
+    "emulators": "firebase emulators:start",
+    "deploy": "firebase deploy"
+  },
+  "devDependencies": {
+    "firebase-tools": "^15.25.1"
+  },
+  "engines": {
+    "node": "22"
+  }
+}

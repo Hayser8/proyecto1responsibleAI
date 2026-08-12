@@ -1,0 +1,11 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // The client never accesses this directory directly. All access must pass
+    // through authenticated, validated Cloud Functions.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

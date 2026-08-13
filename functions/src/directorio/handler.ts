@@ -18,7 +18,11 @@ export function createDirectoryHandler(
       try {
         const page = await reader.list(query);
         response.status(200).json(page);
-      } catch {
+      } catch (error) {
+        console.error(
+          "Error al consultar el directorio",
+          error instanceof Error ? error.message : "Error desconocido",
+        );
         response.status(500).json({
           error: {code: "INTERNAL", message: "Error interno"},
         });

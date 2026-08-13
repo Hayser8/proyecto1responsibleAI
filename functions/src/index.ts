@@ -10,6 +10,7 @@ import {createFirestoreMedicosWriter} from "./recoleccion/repository.js";
 import {createCollectionService} from "./recoleccion/service.js";
 import {withIpWhitelist} from "./security/ip-whitelist.js";
 import {withRateLimit} from "./security/rate-limit.js";
+import {withRequestLogging} from "./security/request-logging.js";
 
 initializeApp();
 
@@ -36,15 +37,18 @@ export const recolectarMedicos = onRequest(
   // El limitador va por dentro de la whitelist: docs/ip-whitelist.md afirma que una IP
   // no autorizada recibe 403 antes de cualquier otra cosa. Invertir el orden devolvería
   // 429 a tráfico no autorizado y dejaría que internet poblara el mapa de buckets.
-  withIpWhitelist(
-    withRateLimit(
-      createRecolectarHandler({
-        collect: collectionService.collect,
-        getApiKey: () => placesApiKey.value(),
-      }),
-      RECOLECCION_RATE_LIMIT,
+  withRequestLogging(
+    withIpWhitelist(
+      withRateLimit(
+        createRecolectarHandler({
+          collect: collectionService.collect,
+          getApiKey: () => placesApiKey.value(),
+        }),
+        RECOLECCION_RATE_LIMIT,
+      ),
+      () => ipWhitelist.value(),
     ),
-    () => ipWhitelist.value(),
+    "recolectarMedicos",
   ),
 );
 
@@ -54,5 +58,8 @@ export const directorio = onRequest(
     maxInstances: 5,
     timeoutSeconds: 30,
   },
-  withRateLimit(createDirectoryHandler(reader), DIRECTORIO_RATE_LIMIT),
+  withRequestLogging(
+    withRateLimit(createDirectoryHandler(reader), DIRECTORIO_RATE_LIMIT),
+    "directorio",
+  ),
 );

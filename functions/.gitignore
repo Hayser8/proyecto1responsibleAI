@@ -8,3 +8,6 @@ typings/
 # Node.js dependency directory
 node_modules/
 *.local
+
+# Local emulator audit log (JSON Lines text)
+logs/

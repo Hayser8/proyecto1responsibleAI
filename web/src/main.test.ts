@@ -86,7 +86,7 @@ describe("directorio de especialistas", () => {
   it("asocia etiquetas visibles con los filtros iniciales", () => {
     mountDirectoryApp(root, vi.fn<typeof fetch>());
 
-    expect(getByLabelText(root, "Especialidad")).toBeInstanceOf(HTMLSelectElement);
+    expect(getByLabelText(root, "Especialidad")).toBeInstanceOf(HTMLInputElement);
     expect(getByLabelText(root, "Zona de la ciudad")).toBeInstanceOf(HTMLSelectElement);
     expect((getByRole(root, "button", {name: "Buscar especialistas"}) as HTMLButtonElement).disabled).toBe(false);
   });
@@ -96,11 +96,26 @@ describe("directorio de especialistas", () => {
 
     expect(getByRole(root, "form", {name: "Recolectar médicos desde Google Places"})).toBeInstanceOf(HTMLFormElement);
     expect(getByLabelText(root, "Keyword")).toBeInstanceOf(HTMLInputElement);
-    expect(getByLabelText(root, "Especialidad para guardar")).toBeInstanceOf(HTMLSelectElement);
+    expect(getByLabelText(root, "Especialidad para guardar")).toBeInstanceOf(HTMLInputElement);
     expect(getByLabelText(root, "Zona para guardar")).toBeInstanceOf(HTMLSelectElement);
     expect((getByLabelText(root, "Keyword") as HTMLInputElement).value).toBe("pediatra zona 10 Ciudad de Guatemala");
     expect(getByRole(root, "button", {name: "Recolectar desde Google Places"})).toBeInstanceOf(HTMLButtonElement);
     expect(getByText(root, /cada envío consume una solicitud de la cuota/i)).toBeInstanceOf(HTMLElement);
+  });
+
+  it("permite escribir especialidades y ofrece sugerencias ampliadas", () => {
+    mountDirectoryApp(root, vi.fn<typeof fetch>());
+
+    const collectionSpecialty = getByLabelText(root, "Especialidad para guardar") as HTMLInputElement;
+    const filterSpecialty = getByLabelText(root, "Especialidad") as HTMLInputElement;
+
+    expect(collectionSpecialty.getAttribute("list")).toBe("especialidades-sugeridas");
+    expect(filterSpecialty.getAttribute("list")).toBe("especialidades-sugeridas");
+    expect(root.querySelectorAll("#especialidades-sugeridas option").length).toBeGreaterThan(10);
+    expect(root.querySelector("#especialidades-sugeridas option[value='Gastroenterología']")).not.toBeNull();
+
+    collectionSpecialty.value = "Nefrología pediátrica";
+    expect(collectionSpecialty.value).toBe("Nefrología pediátrica");
   });
 
   it("recolecta, muestra el resumen y refresca el directorio con los filtros guardados", async () => {
@@ -137,7 +152,7 @@ describe("directorio de especialistas", () => {
       headers: {Accept: "application/json"},
     });
     expect(fetchImpl).toHaveBeenCalledTimes(2);
-    expect((getByLabelText(root, "Especialidad") as HTMLSelectElement).value).toBe("Pediatría");
+    expect((getByLabelText(root, "Especialidad") as HTMLInputElement).value).toBe("Pediatría");
     expect((getByLabelText(root, "Zona de la ciudad") as HTMLSelectElement).value).toBe("10");
   });
 
@@ -153,7 +168,7 @@ describe("directorio de especialistas", () => {
 
     expect((getByRole(root, "button", {name: "Recolectar desde Google Places"}) as HTMLButtonElement).disabled).toBe(true);
     expect((getByLabelText(root, "Keyword") as HTMLInputElement).disabled).toBe(true);
-    expect((getByLabelText(root, "Especialidad para guardar") as HTMLSelectElement).disabled).toBe(true);
+    expect((getByLabelText(root, "Especialidad para guardar") as HTMLInputElement).disabled).toBe(true);
     expect((getByLabelText(root, "Zona para guardar") as HTMLSelectElement).disabled).toBe(true);
     expect(fetchImpl).toHaveBeenCalledTimes(1);
 
@@ -271,6 +286,7 @@ describe("directorio de especialistas", () => {
     fireEvent.submit(getByRole(root, "form", {name: "Filtros del directorio"}));
 
     expect(root.contains(await vi.waitFor(() => getByText(root, "No se encontraron médicos")))).toBe(true);
+    expect(getByText(root, /directorio está conectado, pero todavía no tiene registros/i)).toBeInstanceOf(HTMLElement);
   });
 
   it("anuncia un error seguro sin detalles del servidor", async () => {

@@ -19,13 +19,13 @@ interface UiState {
 interface AppElements {
   collectionForm: HTMLFormElement;
   keyword: HTMLInputElement;
-  collectionSpecialty: HTMLSelectElement;
+  collectionSpecialty: HTMLInputElement;
   collectionZone: HTMLSelectElement;
   collectionSubmit: HTMLButtonElement;
   collectionStatus: HTMLParagraphElement;
   collectionError: HTMLParagraphElement;
   form: HTMLFormElement;
-  specialty: HTMLSelectElement;
+  specialty: HTMLInputElement;
   zone: HTMLSelectElement;
   submit: HTMLButtonElement;
   status: HTMLParagraphElement;
@@ -35,6 +35,33 @@ interface AppElements {
   next: HTMLButtonElement;
   page: HTMLSpanElement;
 }
+
+const SPECIALTY_SUGGESTIONS = [
+  "Pediatría",
+  "Cardiología",
+  "Dermatología",
+  "Medicina interna",
+  "Ginecología y obstetricia",
+  "Traumatología y ortopedia",
+  "Neurología",
+  "Oftalmología",
+  "Otorrinolaringología",
+  "Psiquiatría",
+  "Urología",
+  "Endocrinología",
+  "Gastroenterología",
+  "Medicina familiar",
+  "Cirugía general",
+  "Neumología",
+  "Nefrología",
+  "Oncología",
+  "Reumatología",
+  "Infectología",
+  "Geriatría",
+  "Alergología",
+  "Hematología",
+  "Odontología",
+];
 
 function makeElement<K extends keyof HTMLElementTagNameMap>(
   tagName: K,
@@ -58,8 +85,38 @@ function appendOptions(select: HTMLSelectElement, values: string[], emptyLabel: 
   }
 }
 
+function makeSpecialtyInput(
+  id: string,
+  name: string,
+  placeholder: string,
+  required = false,
+): HTMLInputElement {
+  const input = makeElement("input");
+  input.id = id;
+  input.name = name;
+  input.type = "text";
+  input.placeholder = placeholder;
+  input.required = required;
+  input.setAttribute("list", "especialidades-sugeridas");
+  input.setAttribute("aria-autocomplete", "list");
+  return input;
+}
+
+function makeFieldHint(id: string, text: string): HTMLSpanElement {
+  const hint = makeElement("span", "field-hint", text);
+  hint.id = id;
+  return hint;
+}
+
 function createShell(root: HTMLElement): AppElements {
   const page = makeElement("div", "page-shell");
+  const specialtySuggestions = makeElement("datalist");
+  specialtySuggestions.id = "especialidades-sugeridas";
+  for (const value of SPECIALTY_SUGGESTIONS) {
+    const option = makeElement("option");
+    option.value = value;
+    specialtySuggestions.append(option);
+  }
   const header = makeElement("header", "record-header");
   const headerText = makeElement("div");
   headerText.append(
@@ -97,13 +154,18 @@ function createShell(root: HTMLElement): AppElements {
   const collectionSpecialtyField = makeElement("div", "field");
   const collectionSpecialtyLabel = makeElement("label", undefined, "Especialidad para guardar");
   collectionSpecialtyLabel.htmlFor = "collection-especialidad";
-  const collectionSpecialty = makeElement("select");
-  collectionSpecialty.id = "collection-especialidad";
-  collectionSpecialty.name = "collection-especialidad";
-  collectionSpecialty.required = true;
-  appendOptions(collectionSpecialty, ["Pediatría", "Cardiología", "Dermatología"], "Seleccione una especialidad");
+  const collectionSpecialty = makeSpecialtyInput(
+    "collection-especialidad",
+    "collection-especialidad",
+    "Ej. Pediatría",
+    true,
+  );
   collectionSpecialty.value = "Pediatría";
-  collectionSpecialtyField.append(collectionSpecialtyLabel, collectionSpecialty);
+  collectionSpecialtyField.append(
+    collectionSpecialtyLabel,
+    collectionSpecialty,
+    makeFieldHint("collection-especialidad-ayuda", "Escriba una especialidad o elija una sugerencia."),
+  );
 
   const collectionZoneField = makeElement("div", "field");
   const collectionZoneLabel = makeElement("label", undefined, "Zona para guardar");
@@ -138,11 +200,12 @@ function createShell(root: HTMLElement): AppElements {
   const specialtyField = makeElement("div", "field");
   const specialtyLabel = makeElement("label", undefined, "Especialidad");
   specialtyLabel.htmlFor = "especialidad";
-  const specialty = makeElement("select");
-  specialty.id = "especialidad";
-  specialty.name = "especialidad";
-  appendOptions(specialty, ["Pediatría", "Cardiología", "Dermatología"], "Todas las especialidades");
-  specialtyField.append(specialtyLabel, specialty);
+  const specialty = makeSpecialtyInput("especialidad", "especialidad", "Todas las especialidades");
+  specialtyField.append(
+    specialtyLabel,
+    specialty,
+    makeFieldHint("especialidad-ayuda", "Escriba para filtrar o déjelo vacío para ver todas."),
+  );
 
   const zoneField = makeElement("div", "field");
   const zoneLabel = makeElement("label", undefined, "Zona de la ciudad");
@@ -185,7 +248,7 @@ function createShell(root: HTMLElement): AppElements {
   const notice = makeElement("aside", "reference-notice", "Este directorio es una referencia académica y no certifica credenciales ni sustituye orientación médica profesional.");
   notice.setAttribute("aria-label", "Alcance del directorio");
   main.append(collectionSection, filterSection, resultSection, notice);
-  page.append(header, main);
+  page.append(header, main, specialtySuggestions);
   root.replaceChildren(page);
   return {
     collectionForm,
@@ -316,9 +379,12 @@ export function mountDirectoryApp(root: HTMLElement, fetchImpl: typeof fetch = f
       elements.results.append(renderTable(state.result.data));
     } else if (state.result && !state.loading && !state.error) {
       const empty = makeElement("div", "empty-state");
+      const emptyMessage = state.especialidad || state.zona
+        ? "No hay registros para estos filtros. Si el directorio es nuevo, use Recolectar desde Google Places para cargar datos."
+        : "El directorio está conectado, pero todavía no tiene registros. Use Recolectar desde Google Places para cargar datos.";
       empty.append(
         makeElement("h3", undefined, "No se encontraron médicos"),
-        makeElement("p", undefined, "Cambie la especialidad o la zona y vuelva a buscar."),
+        makeElement("p", undefined, emptyMessage),
       );
       elements.results.append(empty);
     } else if (!state.loading && !state.error) {

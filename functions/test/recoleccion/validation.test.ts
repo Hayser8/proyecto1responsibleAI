@@ -37,15 +37,23 @@ describe("parseRecolectarInput", () => {
     expectInvalidRequest({keyword: "pediatra", zona: "10", especialidad: ""});
   });
 
-  it("normalizes whitespace without inferring values", () => {
+  it("normalizes whitespace and returns the canonical catalog value", () => {
     expect(parseRecolectarInput({
       keyword: "  pediatra   zona 10  ",
       zona: "10",
-      especialidad: "  Pediatría   neonatal ",
+      especialidad: "  Pediatría   ",
     })).toEqual({
       keyword: "pediatra zona 10",
       zona: "10",
-      especialidad: "Pediatría neonatal",
+      especialidad: "Pediatría",
+    });
+  });
+
+  it("rejects a specialty outside the allowed catalog", () => {
+    expectInvalidRequest({
+      keyword: "pediatra zona 10",
+      zona: "10",
+      especialidad: "car",
     });
   });
 

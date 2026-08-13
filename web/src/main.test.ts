@@ -125,6 +125,30 @@ describe("directorio de especialistas", () => {
     expect(collectionSpecialty.value).toBe("Nefrología pediátrica");
   });
 
+  it("no ejecuta la búsqueda para una especialidad fuera del catálogo", () => {
+    const fetchImpl = vi.fn<typeof fetch>();
+    mountDirectoryApp(root, fetchImpl);
+
+    const specialty = getByLabelText(root, "Especialidad") as HTMLInputElement;
+    specialty.value = "car";
+    fireEvent.submit(getByRole(root, "form", {name: "Filtros del directorio"}));
+
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(getByRole(root, "alert").textContent).toContain("Seleccione una especialidad del catálogo.");
+  });
+
+  it("no ejecuta la recolección para una especialidad fuera del catálogo", () => {
+    const fetchImpl = vi.fn<typeof fetch>();
+    mountDirectoryApp(root, fetchImpl);
+
+    const specialty = getByLabelText(root, "Especialidad para guardar") as HTMLInputElement;
+    specialty.value = "car";
+    fireEvent.submit(getByRole(root, "form", {name: "Recolectar médicos desde Google Places"}));
+
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(getByRole(root, "alert").textContent).toContain("Seleccione una especialidad del catálogo.");
+  });
+
   it("recolecta, muestra el resumen y refresca el directorio con los filtros guardados", async () => {
     const collection = {
       keyword: "pediatra zona 10 Ciudad de Guatemala",

@@ -1,4 +1,5 @@
 import {HttpError} from "../shared/http.js";
+import {canonicalSpecialty} from "../shared/specialties.js";
 
 export interface RecolectarInput {
   keyword: string;
@@ -29,13 +30,13 @@ export function parseRecolectarInput(body: unknown): RecolectarInput {
   const {keyword: rawKeyword, zona: rawZona, especialidad: rawEspecialidad} = candidate;
   const keyword = normalizeString(rawKeyword);
   const zona = normalizeString(rawZona);
-  const especialidad = normalizeString(rawEspecialidad);
+  const normalizedEspecialidad = normalizeString(rawEspecialidad);
+  const especialidad = canonicalSpecialty(normalizedEspecialidad);
 
   if (
     keyword.length < 3 ||
     keyword.length > 160 ||
-    especialidad.length < 3 ||
-    especialidad.length > 80 ||
+    especialidad === undefined ||
     !ZONA_PATTERN.test(zona)
   ) {
     return invalidRequest();

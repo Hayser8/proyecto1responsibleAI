@@ -63,6 +63,7 @@ const SPECIALTY_SUGGESTIONS = [
   "Odontología",
 ];
 const CITY_ZONES = Array.from({length: 25}, (_, index) => String(index + 1));
+const INVALID_SPECIALTY_MESSAGE = "Seleccione una especialidad del catálogo.";
 
 function makeElement<K extends keyof HTMLElementTagNameMap>(
   tagName: K,
@@ -407,7 +408,15 @@ export function mountDirectoryApp(root: HTMLElement, fetchImpl: typeof fetch = f
   elements.form.addEventListener("submit", (event) => {
     event.preventDefault();
     state.page = 1;
-    state.especialidad = elements.specialty.value || undefined;
+    const especialidad = elements.specialty.value.trim();
+    if (especialidad && !SPECIALTY_SUGGESTIONS.includes(especialidad)) {
+      state.error = INVALID_SPECIALTY_MESSAGE;
+      state.result = undefined;
+      render();
+      return;
+    }
+    state.error = undefined;
+    state.especialidad = especialidad || undefined;
     state.zona = elements.zone.value || undefined;
     void requestPage();
   });
@@ -416,12 +425,17 @@ export function mountDirectoryApp(root: HTMLElement, fetchImpl: typeof fetch = f
     if (state.collectionLoading) return;
 
     const keyword = elements.keyword.value.trim();
-    const especialidad = elements.collectionSpecialty.value;
+    const especialidad = elements.collectionSpecialty.value.trim();
     const zona = elements.collectionZone.value;
     state.collectionError = undefined;
     state.collectionSummary = undefined;
     if (!keyword || !especialidad || !zona) {
       state.collectionError = "Revise la keyword, especialidad y zona.";
+      render();
+      return;
+    }
+    if (!SPECIALTY_SUGGESTIONS.includes(especialidad)) {
+      state.collectionError = INVALID_SPECIALTY_MESSAGE;
       render();
       return;
     }

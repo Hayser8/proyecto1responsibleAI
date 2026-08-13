@@ -67,12 +67,16 @@ describe("parseDirectoryQuery", () => {
     });
   });
 
-  it("preserves the exact specialty text apart from surrounding whitespace", () => {
-    expect(parseDirectoryQuery({especialidad: "  Pediatría   neonatal  "})).toEqual({
+  it("canonicalizes a specialty from the allowed catalog", () => {
+    expect(parseDirectoryQuery({especialidad: "  Pediatría   "})).toEqual({
       page: 1,
       pageSize: 20,
-      especialidad: "Pediatría   neonatal",
+      especialidad: "Pediatría",
     });
+  });
+
+  it("rejects a specialty outside the allowed catalog", () => {
+    expectInvalidQuery({especialidad: "car"});
   });
 
   it("accepts the greatest page whose page-size-50 offset fits Firestore int32", () => {

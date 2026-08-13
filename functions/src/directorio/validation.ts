@@ -1,4 +1,5 @@
 import {HttpError} from "../shared/http.js";
+import {canonicalSpecialty} from "../shared/specialties.js";
 
 export interface DirectoryQuery {
   page: number;
@@ -53,6 +54,11 @@ export function parseDirectoryQuery(query: Record<string, unknown>): DirectoryQu
   const especialidad = parseOptionalFilter(query.especialidad);
   const zona = parseOptionalFilter(query.zona);
 
+  const canonical = especialidad === undefined ? undefined : canonicalSpecialty(especialidad);
+  if (especialidad !== undefined && canonical === undefined) {
+    return invalidRequest();
+  }
+
   if (zona !== undefined && !ZONA_PATTERN.test(zona)) {
     return invalidRequest();
   }
@@ -60,7 +66,7 @@ export function parseDirectoryQuery(query: Record<string, unknown>): DirectoryQu
   return {
     page,
     pageSize,
-    ...(especialidad === undefined ? {} : {especialidad}),
+    ...(canonical === undefined ? {} : {especialidad: canonical}),
     ...(zona === undefined ? {} : {zona}),
   };
 }

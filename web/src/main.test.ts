@@ -87,7 +87,10 @@ describe("directorio de especialistas", () => {
     mountDirectoryApp(root, vi.fn<typeof fetch>());
 
     expect(getByLabelText(root, "Especialidad")).toBeInstanceOf(HTMLInputElement);
-    expect(getByLabelText(root, "Zona de la ciudad")).toBeInstanceOf(HTMLSelectElement);
+    const zone = getByLabelText(root, "Zona de la ciudad");
+    expect(zone).toBeInstanceOf(HTMLSelectElement);
+    expect(zone.querySelectorAll("option")).toHaveLength(26);
+    expect(zone.querySelector("option[value='25']")).not.toBeNull();
     expect((getByRole(root, "button", {name: "Buscar especialistas"}) as HTMLButtonElement).disabled).toBe(false);
   });
 
@@ -97,10 +100,14 @@ describe("directorio de especialistas", () => {
     expect(getByRole(root, "form", {name: "Recolectar médicos desde Google Places"})).toBeInstanceOf(HTMLFormElement);
     expect(getByLabelText(root, "Keyword")).toBeInstanceOf(HTMLInputElement);
     expect(getByLabelText(root, "Especialidad para guardar")).toBeInstanceOf(HTMLInputElement);
-    expect(getByLabelText(root, "Zona para guardar")).toBeInstanceOf(HTMLSelectElement);
+    const collectionZone = getByLabelText(root, "Zona para guardar");
+    expect(collectionZone).toBeInstanceOf(HTMLSelectElement);
+    expect(collectionZone.querySelectorAll("option")).toHaveLength(26);
+    expect(collectionZone.querySelector("option[value='25']")).not.toBeNull();
     expect((getByLabelText(root, "Keyword") as HTMLInputElement).value).toBe("pediatra zona 10 Ciudad de Guatemala");
     expect(getByRole(root, "button", {name: "Recolectar desde Google Places"})).toBeInstanceOf(HTMLButtonElement);
     expect(getByText(root, /cada envío consume una solicitud de la cuota/i)).toBeInstanceOf(HTMLElement);
+    expect(queryAllByText(root, /Escriba (una especialidad o elija una sugerencia|para filtrar o déjelo vacío para ver todas)/i)).toHaveLength(0);
   });
 
   it("permite escribir especialidades y ofrece sugerencias ampliadas", () => {

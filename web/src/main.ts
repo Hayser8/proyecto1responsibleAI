@@ -62,6 +62,7 @@ const SPECIALTY_SUGGESTIONS = [
   "Hematología",
   "Odontología",
 ];
+const CITY_ZONES = Array.from({length: 25}, (_, index) => String(index + 1));
 
 function makeElement<K extends keyof HTMLElementTagNameMap>(
   tagName: K,
@@ -100,12 +101,6 @@ function makeSpecialtyInput(
   input.setAttribute("list", "especialidades-sugeridas");
   input.setAttribute("aria-autocomplete", "list");
   return input;
-}
-
-function makeFieldHint(id: string, text: string): HTMLSpanElement {
-  const hint = makeElement("span", "field-hint", text);
-  hint.id = id;
-  return hint;
 }
 
 function createShell(root: HTMLElement): AppElements {
@@ -161,11 +156,7 @@ function createShell(root: HTMLElement): AppElements {
     true,
   );
   collectionSpecialty.value = "Pediatría";
-  collectionSpecialtyField.append(
-    collectionSpecialtyLabel,
-    collectionSpecialty,
-    makeFieldHint("collection-especialidad-ayuda", "Escriba una especialidad o elija una sugerencia."),
-  );
+  collectionSpecialtyField.append(collectionSpecialtyLabel, collectionSpecialty);
 
   const collectionZoneField = makeElement("div", "field");
   const collectionZoneLabel = makeElement("label", undefined, "Zona para guardar");
@@ -174,7 +165,7 @@ function createShell(root: HTMLElement): AppElements {
   collectionZone.id = "collection-zona";
   collectionZone.name = "collection-zona";
   collectionZone.required = true;
-  appendOptions(collectionZone, ["1", "9", "10"], "Seleccione una zona");
+  appendOptions(collectionZone, CITY_ZONES, "Seleccione una zona");
   collectionZone.value = "10";
   collectionZoneField.append(collectionZoneLabel, collectionZone);
 
@@ -201,11 +192,7 @@ function createShell(root: HTMLElement): AppElements {
   const specialtyLabel = makeElement("label", undefined, "Especialidad");
   specialtyLabel.htmlFor = "especialidad";
   const specialty = makeSpecialtyInput("especialidad", "especialidad", "Todas las especialidades");
-  specialtyField.append(
-    specialtyLabel,
-    specialty,
-    makeFieldHint("especialidad-ayuda", "Escriba para filtrar o déjelo vacío para ver todas."),
-  );
+  specialtyField.append(specialtyLabel, specialty);
 
   const zoneField = makeElement("div", "field");
   const zoneLabel = makeElement("label", undefined, "Zona de la ciudad");
@@ -213,7 +200,7 @@ function createShell(root: HTMLElement): AppElements {
   const zone = makeElement("select");
   zone.id = "zona";
   zone.name = "zona";
-  appendOptions(zone, ["1", "9", "10"], "Todas las zonas");
+  appendOptions(zone, CITY_ZONES, "Todas las zonas");
   zoneField.append(zoneLabel, zone);
 
   const submit = makeElement("button", "primary-button", "Buscar especialistas");

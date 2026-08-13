@@ -31,6 +31,7 @@ export interface CollectionRequest {
 }
 
 export interface CollectionSummary extends CollectionRequest {
+  keyword: string;
   encontrados: number;
   creados: number;
   actualizados: number;

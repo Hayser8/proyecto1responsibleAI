@@ -65,7 +65,11 @@ describe.runIf(emulatorIsConfigured)("Firestore emulator integration", () => {
       () => Timestamp.fromDate(new Date("2026-08-02T12:00:00.000Z")),
     );
     const reader = createFirestoreMedicosReader(firestore);
-    const input = {keyword: "pediatras zona 10", especialidad: "Pediatría", zona: "10"};
+    const input = {
+      keyword: "pediatra infantil zona 10",
+      especialidad: "Pediatría",
+      zona: "10",
+    };
 
     await expect(writer.save(candidates, input)).resolves.toEqual({creados: 20, actualizados: 0});
     await expect(writer.save(candidates.slice(0, 5), input)).resolves.toEqual({creados: 0, actualizados: 5});

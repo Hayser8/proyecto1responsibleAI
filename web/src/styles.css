@@ -139,6 +139,19 @@ main {
   align-items: end;
 }
 
+.query-preview {
+  display: flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.2rem;
+  color: var(--muted);
+  background: #f8fafb;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8125rem;
+}
+
 .field {
   display: grid;
   gap: 0.4rem;

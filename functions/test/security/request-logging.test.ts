@@ -53,4 +53,38 @@ describe("request logging", () => {
     expect(logged.timestamp).toEqual(expect.any(String));
     expect(logged.durationMs).toEqual(expect.any(Number));
   });
+
+  it("logs only the fields projected for a route", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
+    const listeners: Array<() => void> = [];
+    const response = {
+      statusCode: 400,
+      once(_event: string, listener: () => void) {
+        listeners.push(listener);
+        return response;
+      },
+    } as unknown as Response;
+    const request = {
+      method: "POST",
+      body: {keyword: "texto arbitrario", especialidad: "Pediatría", zona: "10"},
+      query: {},
+    } as unknown as Request;
+
+    await withRequestLogging(
+      async () => undefined,
+      "recolectarMedicos",
+      (received) => {
+        const body = received.body as Record<string, unknown>;
+        return {keyword: body.keyword, especialidad: body.especialidad, zona: body.zona};
+      },
+    )(request, response);
+    listeners[0]?.();
+
+    const logged = JSON.parse(String(info.mock.calls[0]?.[0])) as Record<string, unknown>;
+    expect(logged.payload).toEqual({
+      keyword: "texto arbitrario",
+      especialidad: "Pediatría",
+      zona: "10",
+    });
+  });
 });

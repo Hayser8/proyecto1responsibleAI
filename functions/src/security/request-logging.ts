@@ -2,7 +2,7 @@ import {randomUUID} from "node:crypto";
 import {appendFileSync, mkdirSync} from "node:fs";
 import {dirname, join} from "node:path";
 import type {Request, Response} from "express";
-import type {HttpHandler} from "./ip-whitelist.js";
+import type {HttpHandler} from "./http-handler.js";
 
 const LOCAL_LOG_FILE = join(process.cwd(), "logs", "api-calls.ndjson");
 const MAX_STRING_LENGTH = 1_000;
@@ -53,7 +53,7 @@ function requestPayload(request: Request): unknown {
 function writeAuditLog(entry: ApiCallLogEntry): void {
   const line = JSON.stringify(entry);
   // Cloud Logging ingests this JSON line. It contains only the allow-listed request
-  // payload and never headers, API keys, cookies, or the IP whitelist.
+  // payload and never headers, API keys, cookies, or authentication tokens.
   console.info(line);
 
   // The Functions filesystem is ephemeral in production. Persist a text log only
@@ -65,7 +65,11 @@ function writeAuditLog(entry: ApiCallLogEntry): void {
   appendFileSync(logFile, `${line}\n`, {encoding: "utf8"});
 }
 
-export function withRequestLogging(next: HttpHandler, route: string): HttpHandler {
+export function withRequestLogging(
+  next: HttpHandler,
+  route: string,
+  payloadForRequest: (request: Request) => unknown = requestPayload,
+): HttpHandler {
   return async (request, response) => {
     const startedAt = Date.now();
     const requestId = randomUUID();
@@ -82,7 +86,7 @@ export function withRequestLogging(next: HttpHandler, route: string): HttpHandle
         method: request.method,
         status: response.statusCode,
         durationMs: Date.now() - startedAt,
-        payload: sanitizeAuditPayload(requestPayload(request)),
+        payload: sanitizeAuditPayload(payloadForRequest(request)),
       });
     };
 

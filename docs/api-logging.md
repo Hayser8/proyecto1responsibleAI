@@ -4,10 +4,10 @@ Cada llamada a `directorio` y `recolectarMedicos` genera una línea JSON con:
 
 - `timestamp`: hora UTC en formato ISO.
 - `route`, `method`, `status` y `durationMs`.
-- `payload`: query string para GET o cuerpo JSON para POST.
+- `payload`: query string para `directorio`; en `recolectarMedicos` se proyectan únicamente `keyword`, `especialidad` y `zona`, incluso si el cuerpo fue rechazado.
 - `requestId`: identificador para correlacionar una solicitud.
 
-Los valores que parezcan credenciales, tokens, contraseñas, cookies o claves API se reemplazan por `[REDACTED]`. No se registran headers ni la whitelist de IPs.
+Los valores que parezcan credenciales, tokens, contraseñas, cookies o claves API se reemplazan por `[REDACTED]`. No se registran headers; la keyword se conserva limitada por el sanitizador para auditar la consulta enviada.
 
 En producción se escribe JSON en stdout para que Firebase lo ingrese en Cloud Logging. El filesystem de Cloud Functions es efímero, así que no se usa como almacenamiento permanente.
 

@@ -50,7 +50,7 @@ describe("withIpWhitelist", () => {
     const secured = withIpWhitelist(makeNext(calls), () => ["203.0.113.10"]);
     const {response, captured} = makeResponse();
 
-    await secured(makeRequest({forwardedFor: "203.0.113.10"}), response);
+    await secured(makeRequest({remoteAddress: "203.0.113.10"}), response);
 
     expect(calls.count).toBe(1);
     expect(captured).toEqual({});
@@ -61,7 +61,7 @@ describe("withIpWhitelist", () => {
     const secured = withIpWhitelist(makeNext(calls), () => ["203.0.113.10"]);
     const {response, captured} = makeResponse();
 
-    await secured(makeRequest({forwardedFor: "198.51.100.1"}), response);
+    await secured(makeRequest({remoteAddress: "198.51.100.1"}), response);
 
     expect(captured).toEqual({
       status: 403,
@@ -112,7 +112,7 @@ describe("withIpWhitelist", () => {
     expect(calls.count).toBe(0);
   });
 
-  it("does not replace a supplied unauthorized X-Forwarded-For in emulator mode", async () => {
+  it("ignora X-Forwarded-For en emulador y usa la conexión loopback", async () => {
     vi.stubEnv("FUNCTIONS_EMULATOR", "true");
     const calls = {count: 0};
     const secured = withIpWhitelist(makeNext(calls), () => ["127.0.0.1"]);
@@ -120,21 +120,18 @@ describe("withIpWhitelist", () => {
 
     await secured(makeRequest({forwardedFor: "198.51.100.1"}), response);
 
-    expect(captured).toEqual({
-      status: 403,
-      body: {error: {code: "IP_FORBIDDEN", message: "IP no autorizada"}},
-    });
-    expect(calls.count).toBe(0);
+    expect(captured).toEqual({});
+    expect(calls.count).toBe(1);
   });
 
-  it("uses the first X-Forwarded-For entry as the client IP", async () => {
+  it("rechaza una IP permitida aportada solo mediante X-Forwarded-For", async () => {
     const calls = {count: 0};
     const secured = withIpWhitelist(makeNext(calls), () => ["203.0.113.10"]);
     const {response} = makeResponse();
 
     await secured(makeRequest({forwardedFor: "203.0.113.10, 198.51.100.1"}), response);
 
-    expect(calls.count).toBe(1);
+    expect(calls.count).toBe(0);
   });
 
   it("falls back to the socket remote address when forwarding headers are absent", async () => {
@@ -147,6 +144,20 @@ describe("withIpWhitelist", () => {
     expect(calls.count).toBe(1);
   });
 
+  it("no permite que X-Forwarded-For suplante la dirección de la conexión", async () => {
+    const calls = {count: 0};
+    const secured = withIpWhitelist(makeNext(calls), () => ["203.0.113.10"]);
+    const {response, captured} = makeResponse();
+
+    await secured(makeRequest({
+      forwardedFor: "203.0.113.10",
+      remoteAddress: "198.51.100.1",
+    }), response);
+
+    expect(captured.status).toBe(403);
+    expect(calls.count).toBe(0);
+  });
+
   it.each([
     "::ffff:127.0.0.1",
     "::ffff:7f00:1",
@@ -157,7 +168,7 @@ describe("withIpWhitelist", () => {
     const secured = withIpWhitelist(makeNext(calls), () => ["127.0.0.1"]);
     const {response} = makeResponse();
 
-    await secured(makeRequest({forwardedFor}), response);
+    await secured(makeRequest({remoteAddress: forwardedFor}), response);
 
     expect(calls.count).toBe(1);
   });
@@ -167,7 +178,7 @@ describe("withIpWhitelist", () => {
     const secured = withIpWhitelist(makeNext(calls), () => ["2001:db8:0:0:0:0:0:1"]);
     const {response} = makeResponse();
 
-    await secured(makeRequest({forwardedFor: "2001:db8::1"}), response);
+    await secured(makeRequest({remoteAddress: "2001:db8::1"}), response);
 
     expect(calls.count).toBe(1);
   });
@@ -180,7 +191,7 @@ describe("withIpWhitelist", () => {
     const secured = withIpWhitelist(makeNext(calls), () => [allowed]);
     const {response} = makeResponse();
 
-    await secured(makeRequest({forwardedFor: client}), response);
+    await secured(makeRequest({remoteAddress: client}), response);
 
     expect(calls.count).toBe(1);
   });
@@ -192,7 +203,7 @@ describe("withIpWhitelist", () => {
       const secured = withIpWhitelist(makeNext(calls), () => ["::1"]);
       const {response, captured} = makeResponse();
 
-      await secured(makeRequest({forwardedFor}), response);
+      await secured(makeRequest({remoteAddress: forwardedFor}), response);
 
       expect(captured.status).toBe(403);
       expect(calls.count).toBe(0);
@@ -206,7 +217,7 @@ describe("withIpWhitelist", () => {
       const secured = withIpWhitelist(makeNext(calls), () => [allowed]);
       const {response, captured} = makeResponse();
 
-      await secured(makeRequest({forwardedFor: "::1"}), response);
+      await secured(makeRequest({remoteAddress: "::1"}), response);
 
       expect(captured.status).toBe(500);
       expect(calls.count).toBe(0);
@@ -214,7 +225,7 @@ describe("withIpWhitelist", () => {
   );
 
   it.each<string | string[]>(["", "not-an-ip", []])(
-    "rejects a present empty or invalid X-Forwarded-For instead of using emulator fallback: %#",
+    "ignora un X-Forwarded-For inválido y usa loopback en el emulador: %#",
     async (forwardedFor) => {
       vi.stubEnv("FUNCTIONS_EMULATOR", "true");
       const calls = {count: 0};
@@ -223,22 +234,22 @@ describe("withIpWhitelist", () => {
 
       await secured(makeRequest({forwardedFor}), response);
 
-      expect(captured).toEqual({
-        status: 403,
-        body: {error: {code: "IP_FORBIDDEN", message: "IP no autorizada"}},
-      });
-      expect(calls.count).toBe(0);
+      expect(captured).toEqual({});
+      expect(calls.count).toBe(1);
     },
   );
 
-  it("uses the first value when X-Forwarded-For is represented as a header array", async () => {
+  it("ignora X-Forwarded-For aunque esté representado como arreglo", async () => {
     const calls = {count: 0};
     const secured = withIpWhitelist(makeNext(calls), () => ["203.0.113.10"]);
     const {response} = makeResponse();
 
-    await secured(makeRequest({forwardedFor: ["203.0.113.10, 198.51.100.1", "198.51.100.2"]}), response);
+    await secured(makeRequest({
+      forwardedFor: ["203.0.113.10, 198.51.100.1", "198.51.100.2"],
+      remoteAddress: "198.51.100.2",
+    }), response);
 
-    expect(calls.count).toBe(1);
+    expect(calls.count).toBe(0);
   });
 
   it("awaits an authorized asynchronous handler", async () => {
@@ -249,7 +260,7 @@ describe("withIpWhitelist", () => {
     }, () => ["203.0.113.10"]);
     const {response} = makeResponse();
 
-    await secured(makeRequest({forwardedFor: "203.0.113.10"}), response);
+    await secured(makeRequest({remoteAddress: "203.0.113.10"}), response);
 
     expect(completed).toBe(true);
   });
@@ -261,7 +272,7 @@ describe("withIpWhitelist", () => {
       const secured = withIpWhitelist(makeNext(calls), () => config);
       const {response, captured} = makeResponse();
 
-      await secured(makeRequest({forwardedFor: "203.0.113.10"}), response);
+      await secured(makeRequest({remoteAddress: "203.0.113.10"}), response);
 
       expect(captured).toEqual({
         status: 500,
@@ -292,7 +303,7 @@ describe("withIpWhitelist", () => {
     });
     const {response, captured} = makeResponse();
 
-    await secured(makeRequest({forwardedFor: "203.0.113.10"}), response);
+    await secured(makeRequest({remoteAddress: "203.0.113.10"}), response);
 
     expect(captured).toEqual({
       status: 500,

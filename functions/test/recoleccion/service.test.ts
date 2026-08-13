@@ -5,7 +5,7 @@ import {createCollectionService} from "../../src/recoleccion/service.js";
 import type {RecolectarInput} from "../../src/recoleccion/validation.js";
 
 const input: RecolectarInput = {
-  keyword: "pediatra zona 10 Ciudad de Guatemala",
+  keyword: "pediatra infantil zona 10",
   zona: "10",
   especialidad: "Pediatría",
 };
@@ -15,11 +15,11 @@ describe("createCollectionService", () => {
     const candidates: PlaceCandidate[] = Array.from({length: 20}, (_, index) => ({
       id: `place-${index + 1}`,
     }));
-    const searches: Array<{keyword: string; apiKey: string}> = [];
+    const searches: Array<{input: RecolectarInput; apiKey: string}> = [];
     const saves: Array<{candidates: PlaceCandidate[]; input: RecolectarInput}> = [];
     const places: PlacesClient = {
-      async search(keyword, apiKey) {
-        searches.push({keyword, apiKey});
+      async search(receivedInput, apiKey) {
+        searches.push({input: receivedInput, apiKey});
         return candidates;
       },
     };
@@ -33,7 +33,7 @@ describe("createCollectionService", () => {
     const result = await createCollectionService({places, writer}).collect(input, "test-api-key");
 
     expect(result).toEqual({
-      keyword: "pediatra zona 10 Ciudad de Guatemala",
+      keyword: "pediatra infantil zona 10",
       zona: "10",
       especialidad: "Pediatría",
       encontrados: 20,
@@ -41,7 +41,7 @@ describe("createCollectionService", () => {
       actualizados: 2,
     });
     expect(searches).toEqual([{
-      keyword: "pediatra zona 10 Ciudad de Guatemala",
+      input,
       apiKey: "test-api-key",
     }]);
     expect(saves).toEqual([{candidates, input}]);
@@ -64,7 +64,7 @@ describe("createCollectionService", () => {
     const result = await createCollectionService({places, writer}).collect(input, "test-api-key");
 
     expect(result).toEqual({
-      keyword: "pediatra zona 10 Ciudad de Guatemala",
+      keyword: "pediatra infantil zona 10",
       zona: "10",
       especialidad: "Pediatría",
       encontrados: 0,

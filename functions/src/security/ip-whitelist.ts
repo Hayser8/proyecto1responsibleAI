@@ -1,7 +1,8 @@
 import {isIP} from "node:net";
-import type {Request, Response} from "express";
+import type {Request} from "express";
+import type {HttpHandler} from "./http-handler.js";
 
-export type HttpHandler = (request: Request, response: Response) => Promise<void>;
+export type {HttpHandler} from "./http-handler.js";
 
 type ErrorBody = {error: {code: string; message: string}};
 
@@ -90,14 +91,11 @@ function allowedIps(value: unknown): Set<string> | undefined {
 }
 
 export function clientIp(request: Request): string | undefined {
-  const forwardedFor = request.headers["x-forwarded-for"];
-  const hasForwardedFor = forwardedFor !== undefined;
-  const value = Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor;
-  const candidate = hasForwardedFor
-    ? value?.split(",", 1)[0]?.trim()
-    : request.socket.remoteAddress ?? (
-      process.env.FUNCTIONS_EMULATOR === "true" ? "127.0.0.1" : undefined
-    );
+  // X-Forwarded-For puede contener texto aportado por quien llama. Sin un borde
+  // que lo reemplace y bloquee la URL directa no es una identidad confiable.
+  const candidate = request.socket.remoteAddress ?? (
+    process.env.FUNCTIONS_EMULATOR === "true" ? "127.0.0.1" : undefined
+  );
 
   return candidate === undefined ? undefined : normalizeIp(candidate);
 }

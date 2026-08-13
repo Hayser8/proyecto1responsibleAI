@@ -7,6 +7,13 @@ export interface RecolectarInput {
   especialidad: string;
 }
 
+export function collectionKeyword(input: RecolectarInput): string {
+  return input.keyword;
+}
+
+const REQUEST_FIELDS = new Set(["keyword", "zona", "especialidad"]);
+const MAX_KEYWORD_LENGTH = 120;
+
 const ZONA_PATTERN = /^(?:[1-9]|1[0-9]|2[0-5])$/;
 
 function invalidRequest(): never {
@@ -27,6 +34,10 @@ export function parseRecolectarInput(body: unknown): RecolectarInput {
   }
 
   const candidate = body as Record<string, unknown>;
+  if (Object.keys(candidate).some((key) => !REQUEST_FIELDS.has(key))) {
+    return invalidRequest();
+  }
+
   const {keyword: rawKeyword, zona: rawZona, especialidad: rawEspecialidad} = candidate;
   const keyword = normalizeString(rawKeyword);
   const zona = normalizeString(rawZona);
@@ -34,8 +45,8 @@ export function parseRecolectarInput(body: unknown): RecolectarInput {
   const especialidad = canonicalSpecialty(normalizedEspecialidad);
 
   if (
-    keyword.length < 3 ||
-    keyword.length > 160 ||
+    keyword.length < 2 ||
+    keyword.length > MAX_KEYWORD_LENGTH ||
     especialidad === undefined ||
     !ZONA_PATTERN.test(zona)
   ) {

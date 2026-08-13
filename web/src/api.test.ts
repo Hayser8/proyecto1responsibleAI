@@ -55,11 +55,38 @@ describe("fetchDirectory", () => {
 });
 
 describe("collectDoctors", () => {
+  const expectedKeyword = "Pediatría zona 10 Ciudad de Guatemala";
   const request = {
-    keyword: "pediatra zona 10 Ciudad de Guatemala",
+    keyword: expectedKeyword,
     especialidad: "Pediatría",
     zona: "10",
   };
+
+  it("envía una keyword libre normalizada sin cambiar la especialidad guardada", async () => {
+    const editableRequest = {
+      keyword: "  pediatra   infantil 24 horas ",
+      especialidad: "Pediatría",
+      zona: "10",
+    };
+    const summary = {
+      keyword: "pediatra infantil 24 horas",
+      especialidad: "Pediatría",
+      zona: "10",
+      encontrados: 0,
+      creados: 0,
+      actualizados: 0,
+    };
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify(summary), {status: 200}),
+    );
+
+    await expect(collectDoctors(editableRequest, fetchImpl)).resolves.toEqual(summary);
+    expect(fetchImpl.mock.calls[0]?.[1]?.body).toBe(JSON.stringify({
+      keyword: "pediatra infantil 24 horas",
+      especialidad: "Pediatría",
+      zona: "10",
+    }));
+  });
 
   it("envía la solicitud de recolección y devuelve el resumen", async () => {
     const summary = {...request, encontrados: 8, creados: 5, actualizados: 3};
@@ -73,13 +100,40 @@ describe("collectDoctors", () => {
     await expect(collectDoctors(request, fetchImpl)).resolves.toEqual(summary);
     expect(fetchImpl).toHaveBeenCalledWith("/recolectarMedicos", {
       method: "POST",
-      headers: {Accept: "application/json", "Content-Type": "application/json"},
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify({
-        keyword: "pediatra zona 10 Ciudad de Guatemala",
+        keyword: expectedKeyword,
         especialidad: "Pediatría",
         zona: "10",
       }),
     });
+  });
+
+  it("normaliza la solicitud antes de compararla con la respuesta canónica", async () => {
+    const summary = {
+      keyword: expectedKeyword,
+      especialidad: "Pediatría",
+      zona: "10",
+      encontrados: 0,
+      creados: 0,
+      actualizados: 0,
+    };
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify(summary), {status: 200}),
+    );
+
+    await expect(collectDoctors(
+      {keyword: "  Pediatría   zona 10 Ciudad de Guatemala ", especialidad: "  pediatria  ", zona: " 10 "},
+      fetchImpl,
+    )).resolves.toEqual(summary);
+    expect(fetchImpl.mock.calls[0]?.[1]?.body).toBe(JSON.stringify({
+      keyword: expectedKeyword,
+      especialidad: "Pediatría",
+      zona: "10",
+    }));
   });
 
   it.each([
@@ -132,12 +186,12 @@ describe("collectDoctors", () => {
   it.each([
     ["null", "null"],
     ["un arreglo", "[]"],
-    ["campos de solicitud distintos", JSON.stringify({...request, keyword: "cardiólogo zona 9", encontrados: 8, creados: 5, actualizados: 3})],
+    ["campos de solicitud distintos", JSON.stringify({...request, keyword: "Cardiología zona 9 Ciudad de Guatemala", encontrados: 8, creados: 5, actualizados: 3})],
     ["un campo de solicitud no string", JSON.stringify({...request, zona: 10, encontrados: 8, creados: 5, actualizados: 3})],
     ["un contador faltante", JSON.stringify({...request, encontrados: 8, creados: 5})],
     ["un contador negativo", JSON.stringify({...request, encontrados: 8, creados: -1, actualizados: 3})],
     ["un contador fraccionario", JSON.stringify({...request, encontrados: 8.5, creados: 5, actualizados: 3})],
-    ["un contador no finito", `{"keyword":"${request.keyword}","especialidad":"${request.especialidad}","zona":"${request.zona}","encontrados":1e400,"creados":5,"actualizados":3}`],
+    ["un contador no finito", `{"keyword":"${expectedKeyword}","especialidad":"${request.especialidad}","zona":"${request.zona}","encontrados":1e400,"creados":5,"actualizados":3}`],
   ])("rechaza una respuesta 2xx malformada con %s", async (_caseName, body) => {
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
       new Response(body, {status: 200, headers: {"Content-Type": "application/json"}}),

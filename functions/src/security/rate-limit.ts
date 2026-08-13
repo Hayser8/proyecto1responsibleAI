@@ -1,4 +1,5 @@
-import {clientIp, type HttpHandler} from "./ip-whitelist.js";
+import {clientIp} from "./ip-whitelist.js";
+import type {HttpHandler} from "./http-handler.js";
 
 type ErrorBody = {error: {code: string; message: string}};
 
@@ -40,15 +41,25 @@ function waitSeconds(tokens: number, ratePerMs: number): number {
   return Math.max(1, Math.ceil((1 - tokens) / ratePerMs / 1000));
 }
 
-export function withRateLimit(next: HttpHandler, options: RateLimitOptions): HttpHandler {
+export function withRateLimit(
+  next: HttpHandler,
+  options: RateLimitOptions,
+  keyForRequest: (request: Parameters<HttpHandler>[0]) => string | undefined = clientIp,
+  shouldLimit: (request: Parameters<HttpHandler>[0]) => boolean = () => true,
+): HttpHandler {
   const ipRate = options.perMinute / 60_000;
   const globalRate = options.globalPerMinute / 60_000;
   const buckets = new Map<string, Bucket>();
   const shared: Bucket = {tokens: options.globalPerMinute, updatedAt: options.now()};
 
   return async (request, response) => {
+    if (!shouldLimit(request)) {
+      await next(request, response);
+      return;
+    }
+
     const now = options.now();
-    const key = clientIp(request) ?? "sin-ip";
+    const key = keyForRequest(request) ?? "sin-identidad";
 
     let bucket = buckets.get(key);
     if (bucket === undefined) {
@@ -69,8 +80,7 @@ export function withRateLimit(next: HttpHandler, options: RateLimitOptions): Htt
     // Se recargan ambos buckets y se decide ANTES de consumir: si cualquiera de los dos
     // rechaza, ninguno gasta token. Descontarle a la IP para después rechazarla por el
     // bucket global drenaría a un cliente que jamás recibió respuesta y haría mentir a
-    // Retry-After. Tampoco se gasta cupo global cuando la IP ya rechazó, porque entonces
-    // un solo cliente abusivo drenaría el cupo de todos.
+    // Retry-After. Tampoco se gasta cupo global cuando la identidad ya fue rechazada.
     const ipTokens = refill(bucket, options.burst, ipRate, now);
     const globalTokens = refill(shared, options.globalPerMinute, globalRate, now);
 

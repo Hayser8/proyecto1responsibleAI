@@ -6,7 +6,7 @@ Documento ejecutivo diseñado para una extensión aproximada máxima de cinco p�
 
 El proyecto `proyecto1responsibleai` construye un directorio académico de especialistas de Ciudad de Guatemala. La primera matriz cubre Pediatría, Cardiología y Dermatología en zonas 1, 9 y 10. El objetivo técnico es recolectar hasta 20 resultados por invocación, persistirlos sin duplicados y consultarlos por filtros con paginación. El directorio no valida credenciales médicas.
 
-La solución TypeScript/Node.js 22 separa dos Firebase Functions v2 en `us-central1`: `recolectarMedicos` aplica una whitelist IP, valida una solicitud, consume Places mediante una key secreta y escribe; `directorio` solo filtra y lee. Firebase Hosting sirve la UI y reescribe `/directorio` a la Function. Firestore identifica cada documento como `medicos/{place_id}`. Esta separación evita que una consulta de lectura active consumo externo.
+La solución TypeScript/Node.js 22 separa dos Firebase Functions v2 en `us-central1`: `recolectarMedicos` valida una solicitud, consume Places mediante una key secreta y escribe; `directorio` solo filtra y lee. Firebase Hosting sirve la UI. Firestore identifica cada documento como `medicos/{place_id}`. Esta separación evita que una consulta de lectura active consumo externo.
 
 La arquitectura completa está en [arquitectura.md](./arquitectura.md). Fue validada localmente con emuladores; en cloud se prepararon APIs, Firestore, cuota y secreto, pero no existe URL de producción verificada ni se afirma un despliegue de Functions o Hosting.
 
@@ -24,18 +24,18 @@ La facturación de `proyecto1responsibleai` está habilitada. La evidencia del 2
 | Key dedicada restringida a Places API (New) | VERIFICADA: target solo `places.googleapis.com` |
 | Secret Manager cloud | VERIFICADO: `GOOGLE_PLACES_API_KEY` latest=v2 ENABLED |
 | Firestore `(default)` | VERIFICADO: Native Standard, `us-central1`, delete protection |
-| Whitelist de `recolectarMedicos` | IMPLEMENTADA; `IP_WHITELIST` v1 ENABLED; despliegue pendiente |
+| Control de acceso a `recolectarMedicos` | NO CONFIGURADO; endpoint público con rate limit best-effort |
 | Limitación de ráfagas en ambas Functions | IMPLEMENTADA en código; best-effort por instancia; despliegue pendiente |
 | Functions/Hosting desplegados | **PENDIENTE** |
 | URLs de producción | **PENDIENTE** |
 
-La key y el arreglo JSON `IP_WHITELIST` se vinculan solo a `recolectarMedicos` al desplegar. `latest` de la key corresponde a la versión 2 ENABLED y a una key dedicada del proyecto número `487068590350`; la versión anterior pertenecía a otro proyecto y no fue eliminada. Firestore niega acceso directo de clientes; las Functions accederán por Admin SDK/IAM. La whitelist es un control de entrada al endpoint de recolección y rechaza con 403 antes de negocio, Places o Firestore. Su diseño académico confía en la primera IP de la cadena suministrada por el ingreso administrado y no debe describirse como inmune a suplantación hasta probar las URLs directas y de Hosting desplegadas; producción debe considerar Cloud Armor o un proxy controlado que reescriba un header confiable. La restricción de key es otro control: limita la credencial a Places; una restricción por IP de egress exigiría salida estática no configurada. Ninguno sustituye al otro. La gestión segura de la lista está en [ip-whitelist.md](./ip-whitelist.md).
+`latest` de la key corresponde a una key dedicada restringida a Places. Firestore niega acceso directo de clientes; las Functions acceden por Admin SDK/IAM. La whitelist de aplicación fue retirada porque no es seguro confiar en `X-Forwarded-For` aportado por el cliente; una política real por IP requeriría Cloud Armor o un proxy controlado. `recolectarMedicos` no tiene autenticación y debe considerarse público. Véase [ip-whitelist.md](./ip-whitelist.md).
 
-Un cuarto control acota el ritmo: ambas Functions pasan por un limitador de ráfagas en memoria que responde 429 con `RATE_LIMITED` y `Retry-After`. En `recolectarMedicos` corre por dentro de la whitelist para no alterar el contrato de 403 documentado. Es best-effort por instancia y no sustituye la cuota diaria de Places, que sigue siendo la única garantía servidor de Google. Detalles y límites honestos en [rate-limit.md](./rate-limit.md).
+Otro control acota el ritmo: ambas Functions pasan por un limitador de ráfagas en memoria que responde 429 con `RATE_LIMITED` y `Retry-After`. Usa el peer inmediato como clave aproximada y un bucket global por instancia. No autentica usuarios ni sustituye la cuota diaria de Places. Detalles en [rate-limit.md](./rate-limit.md).
 
 ## 3. Recolección, modelo y keywords
 
-La solicitud contiene `keyword`, `zona` y `especialidad` explícitas. La validación ocurre antes de red o base de datos. El cliente Places usa un máximo de 20 y un field mask para nombre, dirección, teléfono y sitio web. Los resultados se normalizan sin inventar valores: faltantes quedan vacíos y sitios de redes sociales no se agregan. Cada escritura usa merge en el documento cuyo ID es `place_id`; la respuesta separa encontrados, creados y actualizados.
+La solicitud contiene `keyword`, `zona` y `especialidad`. La keyword es editable y se limita a 120 caracteres; la especialidad debe existir en el catálogo y la zona debe estar entre 1 y 25. El cliente Places usa un máximo de 20 y un field mask para nombre, dirección, teléfono y sitio web. Los resultados se normalizan sin inventar valores: faltantes quedan vacíos y sitios de redes sociales no se agregan. Cada escritura usa merge en el documento cuyo ID es `place_id`; la respuesta separa encontrados, creados y actualizados.
 
 Campos: `nombre`, `especialidad`, `direccion`, `telefono`, `sitio_web`, `zona`, `place_id`, `fecha_recoleccion` y `keyword_usado`. Un sitio puede representar una clínica. La fecha y keyword permiten explicar procedencia y antigüedad.
 
@@ -45,13 +45,13 @@ La matriz exacta está en [keywords.md](./keywords.md). No se completa una matri
 
 `GET /directorio` admite `page` ≥ 1, `pageSize` de 1 a 50, y filtros exactos opcionales `especialidad` y `zona`. Responde datos, metadatos de paginación y filtros efectivos. Firestore ordena por `nombre` y `place_id`. La paginación numérica satisface el alcance pequeño; una versión a escala debe usar cursores.
 
-La UI ofrece comboboxes nativos, búsqueda, estado de carga/error/vacío, tabla de siete columnas, fechas y botones Anterior/Siguiente. También incluye un apartado de recolección: envía `POST /recolectarMedicos` con keyword, especialidad y zona; después consulta `GET /directorio` para mostrar los datos guardados. Inserta datos remotos como texto y muestra el aviso académico.
+La UI ofrece comboboxes nativos, búsqueda, estado de carga/error/vacío, tabla de siete columnas, fechas y botones Anterior/Siguiente. También incluye un apartado de recolección: propone una keyword editable y envía `POST /recolectarMedicos` con keyword, especialidad y zona; después consulta `GET /directorio` para mostrar los datos guardados. Inserta datos remotos como texto y muestra el aviso académico.
 
-La verificación automatizada final ejecutó `npm test` y `npm run build`: Functions registró 126 pruebas aprobadas y 1 integración omitida sin emulador; Web registró 32 aprobadas; ambos builds terminaron correctamente.
+La verificación automatizada local debe actualizarse después de cada cambio mediante `npm test`, `npm run build` y la integración con Firestore Emulator.
 
 - Functions: pruebas unitarias y de integración local con Firestore Emulator.
 - Web: pruebas de interfaz y build de Vite.
-- Chromium real, Firebase Hosting/Functions/Firestore emulados: el directorio paginó resultados y el flujo de recolección local se verificó antes de integrar la whitelist. Después se comprobó el rewrite con whitelist: loopback llegó al handler (405 para GET), una IP no autorizada recibió 403 y `directorio` siguió respondiendo 200. No se repitió el POST real para evitar otra llamada de Places.
+- Firebase Hosting/Functions/Firestore emulados: el directorio paginó resultados y el flujo de recolección se verificó localmente. Las pruebas actuales también cubren token ausente/inválido, rol faltante, rate limit por UID y rechazo de keywords aportadas por el cliente.
 
 Evidencia visual: [página 1](./evidencias/task-12-browser-page1.png), [página 2](./evidencias/task-12-browser-page2.png) y [retorno](./evidencias/task-12-browser-page1-return.png). Estas pruebas no consumieron Places ni modificaron producción.
 
@@ -61,4 +61,4 @@ Evidencia adicional de la tubería local: [recolección exitosa SIMULADA/LOCAL](
 
 El directorio reproduce información fechada; no certifica identidad, licencia, especialidad, calidad ni disponibilidad. No mezcla fuentes, no enriquece manualmente y no interpreta campos ausentes. Los resultados de Places pueden tener sesgos de ranking y presencia digital; tres zonas y tres especialidades no representan la oferta sanitaria de la ciudad. Véase [postura-etica.md](./postura-etica.md).
 
-Antes de producción se debe: desplegar Functions y Hosting de forma controlada; registrar SKU, uso y métricas; y completar secuencialmente la matriz. La infraestructura base en `us-central1`, la key, la restricción de API, la cuota y `IP_WHITELIST` v1 ya están configurados. La whitelist existe en código solo para `recolectarMedicos`; `directorio` continúa sin whitelist. Las URLs de producción no se afirman hasta contar con evidencia de despliegue.
+Antes de producción se debe decidir e implementar un control de acceso para `recolectarMedicos`, desplegar de forma controlada y registrar SKU, uso y métricas. El rate limit actual reduce ráfagas, pero no impide que una persona externa invoque el endpoint.

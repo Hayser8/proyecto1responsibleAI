@@ -1,6 +1,6 @@
 import type {Medico} from "../medicos/model.js";
 import type {PlaceCandidate} from "./places-client.js";
-import type {RecolectarInput} from "./validation.js";
+import {collectionKeyword, type RecolectarInput} from "./validation.js";
 
 const MAX_MEDICOS_PER_BATCH = 20;
 const SOCIAL_NETWORK_HOSTS = new Set([
@@ -72,7 +72,7 @@ function toMedico(
     zona: input.zona,
     place_id: candidate.id,
     fecha_recoleccion: collectedAt,
-    keyword_usado: input.keyword,
+    keyword_usado: collectionKeyword(input),
   };
 }
 

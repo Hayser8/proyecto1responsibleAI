@@ -1,6 +1,7 @@
 import "./styles.css";
 
-import {collectDoctors, CollectionApiError, DirectoryApiError, fetchDirectory} from "./api";
+import {collectDoctors, collectionKeyword, CollectionApiError, DirectoryApiError, fetchDirectory} from "./api";
+import {canonicalSpecialty, SPECIALTY_SUGGESTIONS} from "./specialties";
 import type {CollectionSummary, DirectoryPage, MedicoDto} from "./types";
 
 interface UiState {
@@ -18,7 +19,7 @@ interface UiState {
 
 interface AppElements {
   collectionForm: HTMLFormElement;
-  keyword: HTMLInputElement;
+  collectionKeyword: HTMLInputElement;
   collectionSpecialty: HTMLInputElement;
   collectionZone: HTMLSelectElement;
   collectionSubmit: HTMLButtonElement;
@@ -36,32 +37,6 @@ interface AppElements {
   page: HTMLSpanElement;
 }
 
-const SPECIALTY_SUGGESTIONS = [
-  "Pediatría",
-  "Cardiología",
-  "Dermatología",
-  "Medicina interna",
-  "Ginecología y obstetricia",
-  "Traumatología y ortopedia",
-  "Neurología",
-  "Oftalmología",
-  "Otorrinolaringología",
-  "Psiquiatría",
-  "Urología",
-  "Endocrinología",
-  "Gastroenterología",
-  "Medicina familiar",
-  "Cirugía general",
-  "Neumología",
-  "Nefrología",
-  "Oncología",
-  "Reumatología",
-  "Infectología",
-  "Geriatría",
-  "Alergología",
-  "Hematología",
-  "Odontología",
-];
 const CITY_ZONES = Array.from({length: 25}, (_, index) => String(index + 1));
 const INVALID_SPECIALTY_MESSAGE = "Seleccione una especialidad del catálogo.";
 
@@ -136,16 +111,17 @@ function createShell(root: HTMLElement): AppElements {
   const collectionForm = makeElement("form", "collection-form");
   collectionForm.setAttribute("aria-label", "Recolectar médicos desde Google Places");
 
-  const keywordField = makeElement("div", "field");
-  const keywordLabel = makeElement("label", undefined, "Keyword");
-  keywordLabel.htmlFor = "keyword";
-  const keyword = makeElement("input");
-  keyword.id = "keyword";
-  keyword.name = "keyword";
-  keyword.type = "text";
-  keyword.required = true;
-  keyword.value = "pediatra zona 10 Ciudad de Guatemala";
-  keywordField.append(keywordLabel, keyword);
+  const collectionKeywordField = makeElement("div", "field");
+  const collectionKeywordLabel = makeElement("label", undefined, "Keyword");
+  collectionKeywordLabel.htmlFor = "keyword";
+  const collectionKeywordInput = makeElement("input");
+  collectionKeywordInput.id = "keyword";
+  collectionKeywordInput.name = "keyword";
+  collectionKeywordInput.type = "text";
+  collectionKeywordInput.required = true;
+  collectionKeywordInput.maxLength = 120;
+  collectionKeywordInput.placeholder = "Ej. pediatra infantil zona 10";
+  collectionKeywordField.append(collectionKeywordLabel, collectionKeywordInput);
 
   const collectionSpecialtyField = makeElement("div", "field");
   const collectionSpecialtyLabel = makeElement("label", undefined, "Especialidad para guardar");
@@ -170,9 +146,14 @@ function createShell(root: HTMLElement): AppElements {
   collectionZone.value = "10";
   collectionZoneField.append(collectionZoneLabel, collectionZone);
 
+  collectionKeywordInput.value = collectionKeyword({
+    especialidad: collectionSpecialty.value,
+    zona: collectionZone.value,
+  });
+
   const collectionSubmit = makeElement("button", "primary-button", "Recolectar desde Google Places");
   collectionSubmit.type = "submit";
-  collectionForm.append(keywordField, collectionSpecialtyField, collectionZoneField, collectionSubmit);
+  collectionForm.append(collectionKeywordField, collectionSpecialtyField, collectionZoneField, collectionSubmit);
   const quotaNotice = makeElement("p", "quota-notice", "Cada envío consume una solicitud de la cuota de Google Places.");
   const collectionStatus = makeElement("p", "status-message", "Complete los campos para iniciar una recolección.");
   collectionStatus.setAttribute("aria-live", "polite");
@@ -209,6 +190,7 @@ function createShell(root: HTMLElement): AppElements {
   form.append(specialtyField, zoneField, submit);
   const status = makeElement("p", "status-message", "Seleccione filtros y realice una búsqueda.");
   status.setAttribute("role", "status");
+  status.setAttribute("aria-label", "Estado del directorio");
   status.setAttribute("aria-live", "polite");
   status.setAttribute("aria-atomic", "true");
   const error = makeElement("p", "error-message");
@@ -240,7 +222,7 @@ function createShell(root: HTMLElement): AppElements {
   root.replaceChildren(page);
   return {
     collectionForm,
-    keyword,
+    collectionKeyword: collectionKeywordInput,
     collectionSpecialty,
     collectionZone,
     collectionSubmit,
@@ -324,14 +306,23 @@ function renderTable(data: MedicoDto[]): HTMLDivElement {
   return wrapper;
 }
 
-export function mountDirectoryApp(root: HTMLElement, fetchImpl: typeof fetch = fetch): void {
+export function mountDirectoryApp(
+  root: HTMLElement,
+  fetchImpl: typeof fetch = fetch,
+): void {
   const elements = createShell(root);
-  const state: UiState = {page: 1, pageSize: 20, loading: false, collectionLoading: false};
+  const state: UiState = {
+    page: 1,
+    pageSize: 20,
+    loading: false,
+    collectionLoading: false,
+  };
   let directoryRequestGeneration = 0;
+  let suggestedCollectionKeyword = elements.collectionKeyword.value;
 
   const render = (): void => {
     elements.collectionSubmit.disabled = state.collectionLoading;
-    elements.keyword.disabled = state.collectionLoading;
+    elements.collectionKeyword.disabled = state.collectionLoading;
     elements.collectionSpecialty.disabled = state.collectionLoading;
     elements.collectionZone.disabled = state.collectionLoading;
     elements.collectionForm.setAttribute("aria-busy", String(state.collectionLoading));
@@ -424,12 +415,12 @@ export function mountDirectoryApp(root: HTMLElement, fetchImpl: typeof fetch = f
     event.preventDefault();
     if (state.collectionLoading) return;
 
-    const keyword = elements.keyword.value.trim();
+    const keyword = elements.collectionKeyword.value.trim().replace(/\s+/g, " ");
     const especialidad = elements.collectionSpecialty.value.trim();
     const zona = elements.collectionZone.value;
     state.collectionError = undefined;
     state.collectionSummary = undefined;
-    if (!keyword || !especialidad || !zona) {
+    if (!keyword || keyword.length > 120 || !especialidad || !zona) {
       state.collectionError = "Revise la keyword, especialidad y zona.";
       render();
       return;
@@ -464,6 +455,21 @@ export function mountDirectoryApp(root: HTMLElement, fetchImpl: typeof fetch = f
 
     void requestCollection();
   });
+  const updateSuggestedCollectionKeyword = (): void => {
+    const typedSpecialty = elements.collectionSpecialty.value.trim();
+    const nextSuggestion = collectionKeyword({
+      especialidad: canonicalSpecialty(typedSpecialty) ?? typedSpecialty,
+      zona: elements.collectionZone.value,
+    });
+    const currentKeyword = elements.collectionKeyword.value.trim();
+    if (!currentKeyword || currentKeyword === suggestedCollectionKeyword) {
+      elements.collectionKeyword.value = nextSuggestion;
+    }
+    suggestedCollectionKeyword = nextSuggestion;
+    render();
+  };
+  elements.collectionSpecialty.addEventListener("input", updateSuggestedCollectionKeyword);
+  elements.collectionZone.addEventListener("change", updateSuggestedCollectionKeyword);
   elements.previous.addEventListener("click", () => {
     if (state.page <= 1 || state.loading) return;
     state.page -= 1;

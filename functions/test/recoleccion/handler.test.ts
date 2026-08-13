@@ -5,13 +5,13 @@ import type {CollectionSummary} from "../../src/recoleccion/service.js";
 import {HttpError} from "../../src/shared/http.js";
 
 const validBody = {
-  keyword: " pediatra   zona 10 Ciudad de Guatemala ",
+  keyword: " pediatra   infantil zona 10 ",
   zona: "10",
   especialidad: " Pediatría ",
 };
 
 const summary: CollectionSummary = {
-  keyword: "pediatra zona 10 Ciudad de Guatemala",
+  keyword: "pediatra infantil zona 10",
   zona: "10",
   especialidad: "Pediatría",
   encontrados: 20,
@@ -143,7 +143,7 @@ describe("createRecolectarHandler", () => {
     expect(captured).toEqual({status: 200, body: summary});
     expect(calls).toEqual([{
       input: {
-        keyword: "pediatra zona 10 Ciudad de Guatemala",
+        keyword: "pediatra infantil zona 10",
         zona: "10",
         especialidad: "Pediatría",
       },

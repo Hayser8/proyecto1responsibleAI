@@ -12,10 +12,12 @@ interface CapturedResponse {
 interface RequestOptions {
   forwardedFor?: string | string[];
   remoteAddress?: string;
+  method?: string;
 }
 
-function makeRequest({forwardedFor, remoteAddress}: RequestOptions = {}): Request {
+function makeRequest({forwardedFor, remoteAddress, method}: RequestOptions = {}): Request {
   return {
+    method,
     headers: forwardedFor === undefined ? {} : {"x-forwarded-for": forwardedFor},
     socket: {remoteAddress},
   } as Request;
@@ -78,7 +80,7 @@ async function call(handler: HttpHandler, request: Request): Promise<CapturedRes
   return captured;
 }
 
-const authorized = makeRequest({forwardedFor: "203.0.113.10"});
+const authorized = makeRequest({remoteAddress: "203.0.113.10"});
 
 describe("withRateLimit", () => {
   afterEach(() => {
@@ -194,17 +196,44 @@ describe("withRateLimit", () => {
     const limited = withRateLimit(makeNext(calls), options({burst: 1}));
     await call(limited, authorized);
 
-    const other = await call(limited, makeRequest({forwardedFor: "198.51.100.7"}));
+    const other = await call(limited, makeRequest({remoteAddress: "198.51.100.7"}));
 
     expect(other.status).toBeUndefined();
     expect(calls.count).toBe(2);
   });
 
-  it("uses the first X-Forwarded-For entry as the bucket key", async () => {
+  it("ignora X-Forwarded-For y conserva el bucket de la conexión", async () => {
     const limited = withRateLimit(makeNext({count: 0}), options({burst: 1}));
-    await call(limited, makeRequest({forwardedFor: "203.0.113.10, 198.51.100.1"}));
+    await call(limited, makeRequest({
+      forwardedFor: "203.0.113.10",
+      remoteAddress: "198.51.100.1",
+    }));
 
-    const captured = await call(limited, makeRequest({forwardedFor: "203.0.113.10"}));
+    const captured = await call(limited, makeRequest({
+      forwardedFor: "198.51.100.7",
+      remoteAddress: "198.51.100.1",
+    }));
+
+    expect(captured.status).toBe(429);
+  });
+
+  it("usa una identidad verificada y no X-Forwarded-For como clave del bucket", async () => {
+    const keyForRequest = (request: Request): string | undefined => {
+      const value = request.headers["x-test-collector-uid"];
+      return typeof value === "string" ? value : undefined;
+    };
+    const limited = withRateLimit(
+      makeNext({count: 0}),
+      options({burst: 1}),
+      keyForRequest,
+    );
+    const first = makeRequest({forwardedFor: "203.0.113.10", remoteAddress: "192.0.2.1"});
+    first.headers["x-test-collector-uid"] = "collector-1";
+    const rotated = makeRequest({forwardedFor: "198.51.100.7", remoteAddress: "192.0.2.2"});
+    rotated.headers["x-test-collector-uid"] = "collector-1";
+
+    await call(limited, first);
+    const captured = await call(limited, rotated);
 
     expect(captured.status).toBe(429);
   });
@@ -215,9 +244,9 @@ describe("withRateLimit", () => {
     "0:0:0:0:0:ffff:127.0.0.1",
   ])("treats the IPv4-mapped address %s as the same bucket as 127.0.0.1", async (mapped) => {
     const limited = withRateLimit(makeNext({count: 0}), options({burst: 1}));
-    await call(limited, makeRequest({forwardedFor: "127.0.0.1"}));
+    await call(limited, makeRequest({remoteAddress: "127.0.0.1"}));
 
-    const captured = await call(limited, makeRequest({forwardedFor: mapped}));
+    const captured = await call(limited, makeRequest({remoteAddress: mapped}));
 
     expect(captured.status).toBe(429);
   });
@@ -248,9 +277,9 @@ describe("withRateLimit", () => {
     const limited = withRateLimit(makeNext(calls), options({burst: 10, globalPerMinute: 5}));
 
     for (let index = 0; index < 5; index += 1) {
-      await call(limited, makeRequest({forwardedFor: `203.0.113.${index}`}));
+      await call(limited, makeRequest({remoteAddress: `203.0.113.${index}`}));
     }
-    const captured = await call(limited, makeRequest({forwardedFor: "203.0.113.99"}));
+    const captured = await call(limited, makeRequest({remoteAddress: "203.0.113.99"}));
 
     expect(captured.status).toBe(429);
     expect(calls.count).toBe(5);
@@ -264,7 +293,7 @@ describe("withRateLimit", () => {
       await call(limited, authorized);
     }
 
-    const fresh = await call(limited, makeRequest({forwardedFor: "198.51.100.7"}));
+    const fresh = await call(limited, makeRequest({remoteAddress: "198.51.100.7"}));
 
     expect(fresh.status).toBeUndefined();
     expect(calls.count).toBe(2);
@@ -280,11 +309,11 @@ describe("withRateLimit", () => {
       now: clock.now,
     }));
     for (let index = 0; index < 10; index += 1) {
-      await call(limited, makeRequest({forwardedFor: `203.0.113.${index % 4}`}));
+      await call(limited, makeRequest({remoteAddress: `203.0.113.${index % 4}`}));
     }
     expect(calls.count).toBe(10);
 
-    const victim = makeRequest({forwardedFor: "198.51.100.7"});
+    const victim = makeRequest({remoteAddress: "198.51.100.7"});
     for (let attempt = 0; attempt < 3; attempt += 1) {
       expect((await call(limited, victim)).headers["Retry-After"]).toBe("6");
     }
@@ -298,24 +327,24 @@ describe("withRateLimit", () => {
 
   it("evicts the least recently seen key when the store is full", async () => {
     const limited = withRateLimit(makeNext({count: 0}), options({burst: 1, maxKeys: 2}));
-    await call(limited, makeRequest({forwardedFor: "203.0.113.1"}));
-    await call(limited, makeRequest({forwardedFor: "203.0.113.2"}));
-    await call(limited, makeRequest({forwardedFor: "203.0.113.3"}));
+    await call(limited, makeRequest({remoteAddress: "203.0.113.1"}));
+    await call(limited, makeRequest({remoteAddress: "203.0.113.2"}));
+    await call(limited, makeRequest({remoteAddress: "203.0.113.3"}));
 
-    const captured = await call(limited, makeRequest({forwardedFor: "203.0.113.1"}));
+    const captured = await call(limited, makeRequest({remoteAddress: "203.0.113.1"}));
 
     expect(captured.status).toBeUndefined();
   });
 
   it("keeps a touched key from being evicted", async () => {
     const limited = withRateLimit(makeNext({count: 0}), options({burst: 1, maxKeys: 2}));
-    await call(limited, makeRequest({forwardedFor: "203.0.113.1"}));
-    await call(limited, makeRequest({forwardedFor: "203.0.113.2"}));
-    await call(limited, makeRequest({forwardedFor: "203.0.113.1"}));
-    await call(limited, makeRequest({forwardedFor: "203.0.113.3"}));
+    await call(limited, makeRequest({remoteAddress: "203.0.113.1"}));
+    await call(limited, makeRequest({remoteAddress: "203.0.113.2"}));
+    await call(limited, makeRequest({remoteAddress: "203.0.113.1"}));
+    await call(limited, makeRequest({remoteAddress: "203.0.113.3"}));
 
-    expect((await call(limited, makeRequest({forwardedFor: "203.0.113.1"}))).status).toBe(429);
-    expect((await call(limited, makeRequest({forwardedFor: "203.0.113.2"}))).status).toBeUndefined();
+    expect((await call(limited, makeRequest({remoteAddress: "203.0.113.1"}))).status).toBe(429);
+    expect((await call(limited, makeRequest({remoteAddress: "203.0.113.2"}))).status).toBeUndefined();
   });
 
   it("awaits an asynchronous handler", async () => {
@@ -329,6 +358,20 @@ describe("withRateLimit", () => {
     order.push("after");
 
     expect(order).toEqual(["handler", "after"]);
+  });
+
+  it("does not spend any bucket when the route predicate excludes the method", async () => {
+    const calls = {count: 0};
+    const limited = withRateLimit(
+      makeNext(calls),
+      options({burst: 1, globalPerMinute: 1}),
+      () => "collector-1",
+      (request) => request.method === "POST",
+    );
+
+    expect((await call(limited, makeRequest({method: "GET"}))).status).toBeUndefined();
+    expect((await call(limited, makeRequest({method: "POST"}))).status).toBeUndefined();
+    expect(calls.count).toBe(2);
   });
 
   it("counts a request whose handler rejects", async () => {
@@ -360,7 +403,7 @@ describe("withRateLimit", () => {
     );
 
     for (let attempt = 0; attempt < 5; attempt += 1) {
-      const rejected = await call(secured, makeRequest({forwardedFor: "198.51.100.1"}));
+      const rejected = await call(secured, makeRequest({remoteAddress: "198.51.100.1"}));
       expect(rejected.status).toBe(403);
     }
 

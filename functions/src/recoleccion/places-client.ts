@@ -1,4 +1,5 @@
 import {HttpError} from "../shared/http.js";
+import {collectionKeyword, type RecolectarInput} from "./validation.js";
 
 const PLACES_TEXT_SEARCH_URL = "https://places.googleapis.com/v1/places:searchText";
 const PLACES_FIELD_MASK = "places.id,places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri";
@@ -12,7 +13,7 @@ export interface PlaceCandidate {
 }
 
 export interface PlacesClient {
-  search(keyword: string, apiKey: string): Promise<PlaceCandidate[]>;
+  search(input: RecolectarInput, apiKey: string): Promise<PlaceCandidate[]>;
 }
 
 interface PlacesSearchResponse {
@@ -70,7 +71,7 @@ export function createPlacesClient(fetchImpl: typeof fetch): PlacesClient {
   };
 
   return {
-    async search(keyword: string, apiKey: string): Promise<PlaceCandidate[]> {
+    async search(input: RecolectarInput, apiKey: string): Promise<PlaceCandidate[]> {
       try {
         const response = await fetchImpl(PLACES_TEXT_SEARCH_URL, {
           method: "POST",
@@ -80,7 +81,7 @@ export function createPlacesClient(fetchImpl: typeof fetch): PlacesClient {
             "X-Goog-FieldMask": PLACES_FIELD_MASK,
           },
           body: JSON.stringify({
-            textQuery: keyword,
+            textQuery: collectionKeyword(input),
             pageSize: 20,
             languageCode: "es",
             regionCode: "GT",

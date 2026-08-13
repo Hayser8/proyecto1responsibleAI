@@ -55,7 +55,7 @@ class FakeFirestore {
 }
 
 const input: RecolectarInput = {
-  keyword: "pediatra zona 10 Ciudad de Guatemala",
+  keyword: "pediatra infantil zona 10",
   zona: "10",
   especialidad: "Pediatría",
 };
@@ -95,7 +95,7 @@ describe("createFirestoreMedicosWriter", () => {
           zona: "10",
           place_id: "complete-place",
           fecha_recoleccion: collectedAt,
-          keyword_usado: "pediatra zona 10 Ciudad de Guatemala",
+          keyword_usado: "pediatra infantil zona 10",
         },
         options: {merge: true},
       },
@@ -110,7 +110,7 @@ describe("createFirestoreMedicosWriter", () => {
           zona: "10",
           place_id: "minimal-place",
           fecha_recoleccion: collectedAt,
-          keyword_usado: "pediatra zona 10 Ciudad de Guatemala",
+          keyword_usado: "pediatra infantil zona 10",
         },
         options: {merge: true},
       },

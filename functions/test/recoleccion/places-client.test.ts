@@ -2,6 +2,12 @@ import {describe, expect, it} from "vitest";
 import {createPlacesClient} from "../../src/recoleccion/places-client.js";
 import {HttpError} from "../../src/shared/http.js";
 
+const input = {
+  keyword: "pediatra infantil con atención nocturna",
+  especialidad: "Pediatría",
+  zona: "10",
+};
+
 describe("createPlacesClient", () => {
   it("sends the documented Places Text Search request and returns only allowed fields", async () => {
     let request: {url: string; init: RequestInit} | undefined;
@@ -20,7 +26,7 @@ describe("createPlacesClient", () => {
     };
 
     const result = await createPlacesClient(fetchImpl).search(
-      "pediatra zona 10 Ciudad de Guatemala",
+      input,
       "test-api-key",
     );
 
@@ -33,7 +39,7 @@ describe("createPlacesClient", () => {
     );
     expect(headers["X-Goog-Api-Key"]).toBe("test-api-key");
     expect(JSON.parse(String(request?.init.body))).toEqual({
-      textQuery: "pediatra zona 10 Ciudad de Guatemala",
+      textQuery: "pediatra infantil con atención nocturna",
       pageSize: 20,
       languageCode: "es",
       regionCode: "GT",
@@ -58,7 +64,7 @@ describe("createPlacesClient", () => {
       {status: 429},
     ));
 
-    const error = await client.search("pediatra", "test-api-key").catch((reason: unknown) => reason);
+    const error = await client.search(input, "test-api-key").catch((reason: unknown) => reason);
 
     expect(error).toBeInstanceOf(HttpError);
     expect(error).toMatchObject({status: 429, code: "PLACES_QUOTA"});
@@ -71,7 +77,7 @@ describe("createPlacesClient", () => {
       {status: 500},
     ));
 
-    const error = await client.search("pediatra", "test-api-key").catch((reason: unknown) => reason);
+    const error = await client.search(input, "test-api-key").catch((reason: unknown) => reason);
 
     expect(error).toBeInstanceOf(HttpError);
     expect(error).toMatchObject({status: 502, code: "PLACES_ERROR"});
@@ -83,7 +89,7 @@ describe("createPlacesClient", () => {
       throw new HttpError(500, "WRAPPER_FAILURE", "request failed with test-api-key");
     });
 
-    const error = await client.search("pediatra", "test-api-key").catch((reason: unknown) => reason);
+    const error = await client.search(input, "test-api-key").catch((reason: unknown) => reason);
 
     expect(error).toBeInstanceOf(HttpError);
     expect(error).toMatchObject({status: 502, code: "PLACES_ERROR"});
@@ -93,7 +99,7 @@ describe("createPlacesClient", () => {
   it("maps malformed provider JSON to a safe PLACES_ERROR error", async () => {
     const client = createPlacesClient(async () => new Response("not valid json", {status: 200}));
 
-    const error = await client.search("pediatra", "test-api-key").catch((reason: unknown) => reason);
+    const error = await client.search(input, "test-api-key").catch((reason: unknown) => reason);
 
     expect(error).toBeInstanceOf(HttpError);
     expect(error).toMatchObject({status: 502, code: "PLACES_ERROR"});
@@ -108,7 +114,7 @@ describe("createPlacesClient", () => {
     }));
     const client = createPlacesClient(async () => new Response(JSON.stringify({places}), {status: 200}));
 
-    const result = await client.search("pediatra", "test-api-key");
+    const result = await client.search(input, "test-api-key");
 
     expect(result).toHaveLength(20);
     expect(result[19]).toEqual({id: "place-20", formattedAddress: "Address 20"});

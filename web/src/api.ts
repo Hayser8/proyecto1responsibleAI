@@ -1,4 +1,5 @@
 import type {CollectionRequest, CollectionSummary, DirectoryPage} from "./types";
+import {canonicalSpecialty} from "./specialties";
 
 export interface DirectoryQuery {
   page: number;
@@ -11,6 +12,10 @@ const SAFE_ERROR_MESSAGE = "No se pudo consultar el directorio. Intente de nuevo
 const SAFE_COLLECTION_ERROR_MESSAGE = "No se pudo recolectar desde Google Places. Intente de nuevo.";
 const SAFE_RATE_LIMIT_MESSAGE = "Demasiadas solicitudes. Espere unos segundos e intente de nuevo.";
 const SAFE_BUSY_MESSAGE = "Hay demasiadas solicitudes en este momento. Intente de nuevo en unos minutos.";
+
+export function collectionKeyword(input: Pick<CollectionRequest, "especialidad" | "zona">): string {
+  return `${input.especialidad} zona ${input.zona} Ciudad de Guatemala`;
+}
 
 export class DirectoryApiError extends Error {
   constructor(message = SAFE_ERROR_MESSAGE) {
@@ -114,10 +119,19 @@ export async function collectDoctors(
   fetchImpl: typeof fetch = fetch,
 ): Promise<CollectionSummary> {
   try {
+    const normalizedInput: CollectionRequest = {
+      keyword: input.keyword.trim().replace(/\s+/g, " "),
+      especialidad: canonicalSpecialty(input.especialidad)
+        ?? input.especialidad.trim().replace(/\s+/g, " "),
+      zona: input.zona.trim(),
+    };
     const response = await fetchImpl("/recolectarMedicos", {
       method: "POST",
-      headers: {Accept: "application/json", "Content-Type": "application/json"},
-      body: JSON.stringify(input),
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(normalizedInput),
     });
 
     if (!response.ok) {
@@ -138,7 +152,7 @@ export async function collectDoctors(
     }
 
     const payload: unknown = await response.json();
-    return parseCollectionSummary(payload, input);
+    return parseCollectionSummary(payload, normalizedInput);
   } catch (error) {
     if (error instanceof CollectionApiError) throw error;
     throw new CollectionApiError(SAFE_COLLECTION_ERROR_MESSAGE);

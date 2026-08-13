@@ -5,7 +5,7 @@
     "build": "npm --prefix functions run build && npm --prefix web run build",
     "test": "npm --prefix functions test && npm --prefix web test",
     "test:emulators": "firebase emulators:exec --only firestore,functions,hosting \"npm --prefix functions run test:integration\"",
-    "emulators": "firebase emulators:start",
+    "emulators": "npm run build && firebase emulators:start",
     "deploy": "npm run build && firebase deploy --project proyecto1responsibleai",
     "deploy:hosting": "firebase deploy --only hosting --project proyecto1responsibleai",
     "deploy:functions": "firebase deploy --only functions --project proyecto1responsibleai"
